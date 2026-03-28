@@ -1,6 +1,11 @@
 from fastapi import FastAPI, HTTPException
-from app.core.llm_ollama import ask_llm
-from app.core.schemas import AskRequest, AskResponse
+from app.core.llm_ollama import ask_llm, extract_product
+from app.core.schemas import (
+    AskRequest,
+    AskResponse,
+    ExtractRequest,
+    ProductExtractResult,
+)
 
 app = FastAPI(
     title="Price Audit Copilot",
@@ -19,5 +24,14 @@ def ask(req: AskRequest):
     try:
         answer = ask_llm(req.question)
         return AskResponse(answer=answer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post('/extract', response_model=ProductExtractResult)
+def extract(req: ExtractRequest):
+    try:
+        result = extract_product(req.title)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
