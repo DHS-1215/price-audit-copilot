@@ -16,7 +16,7 @@ Price Audit Copilot 面向电商商品价格审核场景，目标是把爬取后
 
 ## 第一周已完成内容
 
-- 完成 FastAPI 后端最小骨架搭建
+- 完成 FastAPI 后端骨架搭建
 - 接通 Ollama 本地模型调用
 - 实现 '/ask' 问答接口
 - 实现 '/extract' 商品标题结构化抽取接口
