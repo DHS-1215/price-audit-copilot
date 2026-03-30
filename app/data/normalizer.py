@@ -356,34 +356,34 @@ def run_normalization(df: pd.DataFrame) -> pd.DataFrame:
     result = df.copy()
     result.columns = [str(col).replace("\ufeff", "").strip() for col in result.columns]
 
-    required_cols = ["clean_title", "clean_spec"]
+    required_cols = ["干净标题", "干净规格"]
     missing_cols = [col for col in required_cols if col not in result.columns]
     if missing_cols:
         raise ValueError(f"缺少必要列：{missing_cols}，请先运行 cleaner.py 生成 cleaned_products_preview.csv")
 
     # 品牌归一
-    result["normalized_brand"] = result["clean_title"].apply(extract_brand_from_title)
+    result["标准化品牌"] = result["干净标题"].apply(extract_brand_from_title)
 
     # 从标题提规格提示
-    result["title_spec_hint"] = result["clean_title"].apply(extract_spec_from_title)
+    result["标题规范提示"] = result["干净标题"].apply(extract_spec_from_title)
 
     # 最终规格 + 来源
     spec_results = result.apply(
-        lambda row: choose_final_spec(row["clean_spec"], row["title_spec_hint"]),
+        lambda row: choose_final_spec(row["干净规格"], row["标题规范提示"]),
         axis=1
     )
 
-    result["normalized_spec"] = spec_results.apply(lambda x: x[0])
-    result["spec_source"] = spec_results.apply(lambda x: x[1])
+    result["规范化规格"] = spec_results.apply(lambda x: x[0])
+    result["规范来源"] = spec_results.apply(lambda x: x[1])
 
     # 标题规格与规格列是否不一致
-    result["title_spec_mismatch_flag"] = result.apply(
-        lambda row: is_title_spec_mismatch(row["clean_spec"], row["title_spec_hint"]),
+    result["标题规格不匹配标志"] = result.apply(
+        lambda row: is_title_spec_mismatch(row["干净规格"], row["标题规范提示"]),
         axis=1
     )
 
-    result["missing_brand_flag"] = result["normalized_brand"].eq("")
-    result["missing_normalized_spec_flag"] = result["normalized_spec"].eq("")
+    result["缺失品牌标志"] = result["标准化品牌"].eq("")
+    result["缺少规范化规范标志"] = result["规范化规格"].eq("")
 
     preferred_cols = [
         "raw_title",

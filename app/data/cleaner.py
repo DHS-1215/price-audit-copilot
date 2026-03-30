@@ -281,11 +281,11 @@ def normalize_input_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             "请至少包含 title / 商品标题 / 标题 之一。"
         )
 
-    result["raw_title"] = result[title_col]
-    result["raw_price"] = result[price_col] if price_col else None
-    result["raw_platform"] = result[platform_col] if platform_col else None
-    result["raw_date"] = result[date_col] if date_col else None
-    result["raw_spec"] = result[spec_col] if spec_col else None
+    result["对照标题"] = result[title_col]
+    result["对照价格"] = result[price_col] if price_col else None
+    result["对照平台"] = result[platform_col] if platform_col else None
+    result["对照日期"] = result[date_col] if date_col else None
+    result["对照规格"] = result[spec_col] if spec_col else None
 
     return result
 
@@ -298,17 +298,17 @@ def run_basic_cleaning(df: pd.DataFrame) -> pd.DataFrame:
     """
     result = normalize_input_dataframe(df)
 
-    result['clean_title'] = result['raw_title'].apply(clean_title_text)
-    result['clean_spec'] = result['raw_spec'].apply(clean_spec_text)
-    result['price'] = result.apply(lambda row: clean_price_value(row['raw_price'], row['raw_title']), axis=1)
-    result['normalized_platform'] = result["raw_platform"].apply(clean_platform_value)
-    result['date'] = result['raw_date'].apply(clean_datetime_value)
+    result['干净标题'] = result['对照标题'].apply(clean_title_text)
+    result['干净规格'] = result['对照规格'].apply(clean_spec_text)
+    result['干净价格'] = result.apply(lambda row: clean_price_value(row['对照价格'], row['对照标题']), axis=1)
+    result['干净平台'] = result["对照平台"].apply(clean_platform_value)
+    result['干净日期'] = result['对照日期'].apply(clean_datetime_value)
 
     # 基础质量标记
-    result['missing_price_flag'] = result['price'].isna()
-    result['missing_date_flag'] = result['date'].isna()
-    result['unknown_platform_flag'] = result['normalized_platform'].eq("未知平台")
-    result['missing_spec_flag'] = result['clean_spec'].eq("")
+    result['价格质量标记'] = result['干净价格'].isna()
+    result['日期质量标记'] = result['干净日期'].isna()
+    result['未知平台标志'] = result['干净平台'].eq("未知平台")
+    result['规格质量标记'] = result['干净价格'].eq("")
 
     preferred_cols = [
         "raw_title",
@@ -319,8 +319,7 @@ def run_basic_cleaning(df: pd.DataFrame) -> pd.DataFrame:
         "price",
         "raw_platform",
         "normalized_platform",
-        "raw_date",
-        "date",
+        "raw_date",        "date",
         "missing_price_flag",
         "missing_date_flag",
         "unknown_platform_flag",
