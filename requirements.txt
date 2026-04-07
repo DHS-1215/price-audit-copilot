@@ -2,3 +2,7 @@ fastapi
 uvicorn[standard]
 requests
 pydantic
+chromadb
+pandas
+faiss-cpu
+faiss

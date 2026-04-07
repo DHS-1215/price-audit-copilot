@@ -6,3 +6,6 @@ __pycache__/
 .vscode/
 *.log
 data/outputs/
+data/chroma/
+data/faiss/
+data/rag/
