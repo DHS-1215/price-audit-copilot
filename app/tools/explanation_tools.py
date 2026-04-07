@@ -412,49 +412,128 @@ def explain_anomaly_row(
 # 9. 本地调试示例
 # -----------------------------------
 
+
 if __name__ == "__main__":
-    # 这里我先用一条“模拟的异常样本”做演示。
-    # 真正接第二周异常明细时，我可以把 DataFrame 的某一行 to_dict() 传进来。
-    if __name__ == "__main__":
-        # 这条 demo_row 故意做成“低价 + 跨平台”双异常样本，
-        # 方便你看解释链有没有把两类异常都讲出来。
-        demo_row = {
-            "标准化品牌": "同仁堂",
-            "规范化规格": "9袋/盒",
-            "干净平台": "拼多多",
-            "干净价格": 20.33,
+    # 这条 demo_row 故意做成“低价 + 跨平台”双异常样本，
+    # 方便你看解释链有没有把两类异常都讲出来。
+    demo_row = {
+        "标准化品牌": "同仁堂",
+        "规范化规格": "9袋/盒",
+        "干净平台": "拼多多",
+        "干净价格": 20.33,
 
-            "是否疑似异常低价": True,
-            "低价规则来源": "stat_rule",
-            "组内均价": 28.04,
-            "当前价格/组均价比": 0.73,
+        "是否疑似异常低价": True,
+        "低价规则来源": "stat_rule",
+        "组内均价": 28.04,
+        "当前价格/组均价比": 0.73,
 
-            "是否跨平台价差异常": True,
-            "组内最低价": 20.33,
-            "组内最高价": 30.80,
-            "跨平台价差比例": 0.34,
+        "是否跨平台价差异常": True,
+        "组内最低价": 20.33,
+        "组内最高价": 30.80,
+        "跨平台价差比例": 0.34,
 
-            "是否规格识别风险": False,
+        "是否规格识别风险": False,
 
-            "异常原因": "疑似异常低价：当前价格低于同品牌同规格均价，均价=28.04，当前/均价=0.73；跨平台价差过大：最低价=20.33，最高价=30.80，价差比例=0.34",
-        }
+        "异常原因": "疑似异常低价：当前价格低于同品牌同规格均价，均价=28.04，当前/均价=0.73；跨平台价差过大：最低价=20.33，最高价=30.80，价差比例=0.34",
+    }
 
-        payload = explain_anomaly_row(demo_row)
+    payload = explain_anomaly_row(demo_row)
 
-        print("规则查询问题：")
-        print(payload["rule_query"])
+    print("规则查询问题：")
+    print(payload["rule_query"])
 
-        print("\n抽取到的结果层事实：")
-        print(payload["facts"])
+    print("\n抽取到的结果层事实：")
+    print(payload["facts"])
 
-        print("\n结果层解释：")
-        print(payload["fact_explanation"])
+    print("\n结果层解释：")
+    print(payload["fact_explanation"])
 
-        print("\n规则层摘要：")
-        print(payload["rule_summary"])
+    print("\n规则层摘要：")
+    print(payload["rule_summary"])
 
-        print("\n复核建议：")
-        print(payload["review_suggestion"])
+    print("\n复核建议：")
+    print(payload["review_suggestion"])
 
-        print("\n最终解释：")
-        print(payload["final_explanation"])
+    print("\n最终解释：")
+    print(payload["final_explanation"])
+
+# if __name__ == "__main__":
+#     demo_cases = [
+#         {
+#             "case_id": "B-02",
+#             "case_name": "显式阈值低价解释",
+#             "row": {
+#                 "标准化品牌": "鸿茅",
+#                 "规范化规格": "500ml",
+#                 "干净平台": "京东",
+#                 "干净价格": 168.00,
+#
+#                 "是否疑似异常低价": True,
+#                 "低价规则来源": "explicit_rule",
+#                 "显式低价阈值": 180.00,
+#                 "组内均价": 198.50,
+#                 "当前价格/组均价比": 0.85,
+#
+#                 "是否跨平台价差异常": False,
+#                 "组内最低价": 168.00,
+#                 "组内最高价": 205.00,
+#                 "跨平台价差比例": 0.18,
+#
+#                 "是否规格识别风险": False,
+#
+#                 "异常原因": "疑似异常低价：命中显式阈值规则，阈值<180.00，当前价格=168.00",
+#             },
+#         },
+#         {
+#             "case_id": "B-04",
+#             "case_name": "规格风险解释",
+#             "row": {
+#                 "标准化品牌": "鸿茅",
+#                 "规范化规格": "250ml",
+#                 "干净平台": "淘宝",
+#                 "干净价格": 92.00,
+#                 "干净规格": "250ml",
+#                 "标题规范提示": "500ml",
+#                 "规范来源": "spec_column",
+#
+#                 "是否疑似异常低价": False,
+#                 "低价规则来源": "",
+#                 "显式低价阈值": None,
+#                 "组内均价": 95.00,
+#                 "当前价格/组均价比": 0.97,
+#
+#                 "是否跨平台价差异常": False,
+#                 "组内最低价": 90.00,
+#                 "组内最高价": 98.00,
+#                 "跨平台价差比例": 0.08,
+#
+#                 "是否规格识别风险": True,
+#
+#                 "异常原因": "规格识别风险：规格列=250ml，标题规格=500ml",
+#             },
+#         },
+#     ]
+#
+#     for case in demo_cases:
+#         print("\n" + "#" * 100)
+#         print(f"验收样例：{case['case_id']} - {case['case_name']}")
+#
+#         payload = explain_anomaly_row(case["row"])
+#
+#         print("规则查询问题：")
+#         print(payload["rule_query"])
+#
+#         print("\n抽取到的结果层事实：")
+#         print(payload["facts"])
+#
+#         print("\n结果层解释：")
+#         print(payload["fact_explanation"])
+#
+#         print("\n规则层摘要：")
+#         print(payload["rule_summary"])
+#
+#         print("\n复核建议：")
+#         print(payload["review_suggestion"])
+#
+#         print("\n最终解释：")
+#         print(payload["final_explanation"])
