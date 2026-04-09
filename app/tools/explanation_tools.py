@@ -191,6 +191,69 @@ def build_rule_query_from_facts(facts: dict[str, Any]) -> str:
     return "这个商品的异常规则依据是什么？"
 
 
+def should_use_generated_rule_query(user_question: str, facts: dict[str, Any]) -> bool:
+    """
+    判断当前是否应该优先使用“根据 facts 自动生成的规则问句”。
+
+    为什么要加这个函数？
+    因为有些用户问题太泛，比如：
+    - 为什么这个商品会被判成高风险？
+    - 为什么它异常？
+    - 这个商品为什么有问题？
+
+    这种问法更适合先根据结果层事实，把问题改写成：
+    - 为什么会被判成疑似异常低价？统计低价规则是怎么定义的？
+    - 为什么会被判成跨平台价差异常？
+    - 为什么会被判成规格识别风险？
+
+    这样去检索规则，会比直接拿“高风险”这种泛词去搜更准。
+    """
+    question = safe_text(user_question).strip()
+    if not question:
+        return True
+
+    q = question.lower()
+
+    # 这些词说明用户已经问得比较具体了
+    # 这种情况下，保留用户原问题更合适
+    specific_keywords = [
+        "低价",
+        "跨平台",
+        "价差",
+        "规格",
+        "标题不完整",
+        "显式阈值",
+        "统计规则",
+        "规则来源",
+        "复核",
+    ]
+
+    if any(keyword in q for keyword in specific_keywords):
+        return False
+
+    # 这些词说明用户是在“泛解释”
+    # 比如“高风险”“为什么这个商品异常”
+    generic_keywords = [
+        "高风险",
+        "异常",
+        "有问题",
+        "为什么这个商品",
+        "为什么该商品",
+    ]
+
+    has_generic_signal = any(keyword in q for keyword in generic_keywords)
+
+    # 只要结果层里已经明确有某类异常，
+    # 且用户问题又比较泛，就优先用自动生成问句
+    has_fact_signal = (
+            safe_bool(facts.get("is_low_price"))
+            or safe_bool(facts.get("is_cross_platform"))
+            or safe_bool(facts.get("is_spec_risk"))
+    )
+
+    return has_generic_signal and has_fact_signal
+
+
 """ 4. 结果事实解释"""
 
 
@@ -381,16 +444,39 @@ def explain_anomaly_row(
         - review_suggestion：复核建议
         - final_explanation: 最终完整解释
     """
+    # 先从第二周结果层里抽核心事实
     facts = extract_result_facts(row)
 
-    rule_query = safe_text(user_question).strip()
-    if not rule_query:
-        rule_query = build_rule_query_from_facts(facts)
+    # 用户原始问题
+    raw_question = safe_text(user_question).strip()
 
+    # 根据结果层事实自动生成一个“更适合规则检索”的问题
+    generated_rule_query = build_rule_query_from_facts(facts)
+
+    # 规则：
+    # 1. 如果用户没传问题，直接用自动生成问句
+    # 2. 如果用户问题太泛（比如“为什么高风险”），也优先用自动生成问句
+    # 3. 如果用户问题已经很具体，就保留用户原问题
+    if not raw_question:
+        rule_query = generated_rule_query
+    elif should_use_generated_rule_query(raw_question, facts):
+        rule_query = generated_rule_query
+    else:
+        rule_query = raw_question
+
+    # 去规则层检索证据
     rule_search = search_rules(query=rule_query, top_k=top_k)
+
+    # 结果层解释：先讲发生了什么
     fact_explanation = build_fact_explanation(facts)
+
+    # 规则层摘要：再讲依据来自哪里
     rule_summary = build_rule_evidence_summary(rule_search)
+
+    # 复核建议：最后补一个可执行建议
     review_suggestion = build_review_suggestion(facts)
+
+    # 拼成最终解释文本
     final_explanation = build_final_explanation(
         fact_explanation=fact_explanation,
         rule_summary=rule_summary,
