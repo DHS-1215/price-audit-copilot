@@ -1,4 +1,8 @@
+# -*- coding: utf-8 -*-
 from fastapi import FastAPI, HTTPException
+from app.api.routes_ask import router as ask_router
+
+# 第一周：结构化抽取能力
 from app.core.llm_ollama import ask_llm, extract_product
 from app.core.schemas import (
     AskRequest,
@@ -7,25 +11,29 @@ from app.core.schemas import (
     ProductExtractResult,
 )
 
+"""
+FastAPI 应用主入口
+    1. 创建 FastAPI app
+    2. 挂载 ask 路由
+    3. 保留 /extract 接口
+"""
 app = FastAPI(
     title="Price Audit Copilot",
-    description="Week 1 minimal runnable skeleton",
-    version="0.1.0"
+    description="Week 4 unified ask entry",
+    version="0.4.0"
 )
+
+# 把 routes_ask.py 里的 /ask 挂起来
+app.include_router(ask_router)
 
 
 @app.get("/")
 def root():
+    """
+    健康检查接口。
+    用来快速确认服务是否启动正常。
+    """
     return {"message": "Price Audit Copilot API is running."}
-
-
-@app.post("/ask", response_model=AskResponse)
-def ask(req: AskRequest):
-    try:
-        answer = ask_llm(req.question)
-        return AskResponse(answer=answer)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post('/extract', response_model=ProductExtractResult)
