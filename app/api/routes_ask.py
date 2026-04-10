@@ -13,6 +13,7 @@ from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException
+from app.tools.report_tools import build_brief_report
 
 # 1. 导入已有能力
 # 第一周已有：通用模型问答（作为兜底用）
@@ -489,35 +490,7 @@ def run_explanation(question: str, top_k: int) -> dict[str, Any]:
     return explain_anomaly_row(row=row, user_question=question, top_k=top_k)
 
 
-# 10. mixed 类问题：生成简短汇报
-def generate_summary(question: str, analysis_result: dict[str, Any], retrieval_result: dict[str, Any]) -> str:
-    """
-    生成混合类问题的简短总结。
-
-    当前做的是一个“够用版”：
-    - 先拿 analysis 的 summary
-    - 再拿 retrieval 的规则摘要
-    - 如果问题中有“汇报 / 总结”，就补一句人工复核建议
-
-    注意：
-    这一步目前还没独立拆到 report_tools.py，
-    先直接放在 routes_ask.py 里，目的是尽快把链路打通。
-    后面第四周再把它拆出去，会更干净。
-    """
-    analysis_summary = safe_text(analysis_result.get("summary"))
-    retrieval_summary = build_rule_search_summary(retrieval_result)
-
-    if "汇报" in question or "总结" in question:
-        return (
-            f"{analysis_summary} "
-            f"{retrieval_summary} "
-            f"建议后续结合命中的规则依据，优先复核异常低价样本的价格口径、活动口径和规格口径。"
-        ).strip()
-
-    return f"{analysis_summary} {retrieval_summary}".strip()
-
-
-# 11. 对外主入口：/ask
+# 10. 对外主入口：/ask
 @router.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
     """
@@ -633,7 +606,7 @@ def ask(req: AskRequest):
 
         # mixed：混合类问题
         if route == "mixed":
-            tools_used.extend(["analysis_tools", "retrieval_tools", "generate_summary"])
+            tools_used.extend(["analysis_tools", "retrieval_tools", "report_tools"])
 
             # 先查数据事实
             analysis_result = analyze_price_data(question)
@@ -661,8 +634,8 @@ def ask(req: AskRequest):
                 )
             )
 
-            # 最后拼一个简短汇报
-            final_answer = generate_summary(
+            # 最后由 report_tools 生成简短汇报
+            final_answer = build_brief_report(
                 question=question,
                 analysis_result=analysis_result,
                 retrieval_result=retrieval_result,
@@ -670,9 +643,9 @@ def ask(req: AskRequest):
             trace.append(
                 build_trace_item(
                     4,
-                    "generate_summary",
+                    "report_tools",
                     "success",
-                    "已生成混合问题摘要。",
+                    "已生成简短汇报。",
                 )
             )
 
