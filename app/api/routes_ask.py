@@ -150,9 +150,14 @@ def apply_time_filter_if_needed(df: pd.DataFrame, question: str) -> pd.DataFrame
     即使你本地样本不是今天的数据，也仍然可以基于样本内部日期做演示。
     """
     question = normalize_text(question)
+    time_keywords = [
+        "近7天", "最近7天", "7天内",
+        "近七天", "最近七天", "七天内",
+        "近一周", "最近一周"
+    ]
 
     # 如果问题里没有“近7天”相关表达，直接原样返回
-    if "近7天" not in question and "最近7天" not in question and "7天内" not in question:
+    if not any(keyword in question for keyword in time_keywords):
         return df
 
     # 尝试寻找日期列

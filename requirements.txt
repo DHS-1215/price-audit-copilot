@@ -6,3 +6,5 @@ chromadb
 pandas
 faiss-cpu
 faiss
+langchain
+langchain-ollama
