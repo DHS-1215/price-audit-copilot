@@ -28,9 +28,6 @@ from typing import Any
 from app.rag.retriever import retrieve_rules as retrieve_rules_baseline
 import importlib
 
-print("已加载 retrieval_tools.py 文件路径：", __file__)
-print("retrieve_rules_baseline 是否可调用：", callable(retrieve_rules_baseline))
-
 """1. 基础配置"""
 DEFAULT_TOP_K = 3
 DEFAULT_PREVIEW_CHARS = 220  # 默认预览文本最多显式220个字符
@@ -213,14 +210,6 @@ def retrieve_rules_by_mode(query: str, top_k: int, mode: str = "baseline") -> di
     - baseline：走第三周 baseline 检索
     - faiss：走第三周 FAISS 向量检索
     """
-    print("进入 retrieve_rules_by_mode")
-    print("query =", query)
-    print("mode =", mode)
-
-    if mode == "faiss":
-        print("准备走 FAISS 检索")
-    else:
-        print("准备走 baseline 检索")
 
     mode = safe_text(mode).strip().lower() or "baseline"
 

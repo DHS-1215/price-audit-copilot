@@ -510,16 +510,6 @@ def ask(req: AskRequest):
     - mixed
     - unknown（兜底走通用模型）
     """
-    print("ask() 收到请求：", req.model_dump())
-    print("准备读取 question 和 use_vector")
-    question = req.question.strip()
-    retrieval_mode = "faiss" if req.use_vector else "baseline"
-    print("question =", question)
-    print("retrieval_mode =", retrieval_mode)
-
-    print("准备 detect_route")
-    route = detect_route(question)
-    print("route =", route)
 
     trace: list[ToolTraceItem] = []
     tools_used: list[str] = []
@@ -576,19 +566,13 @@ def ask(req: AskRequest):
 
         # retrieval：规则检索类问题
         if route == "retrieval":
-            print("进入 retrieval 分支")
-            print("question =", question)
-            print("retrieval_mode =", retrieval_mode)
-
             tools_used.append("retrieval_tools")
 
-            print("调用 search_rules 前")
             retrieval_result = search_rules(
                 query=question,
                 top_k=req.top_k,
                 mode=retrieval_mode,
             )
-            print("调用 search_rules 后")
 
             summary = build_rule_search_summary(retrieval_result)
 
