@@ -32,6 +32,8 @@ Price Audit Copilot 面向电商商品价格审核场景，目标是把爬取后
 - FAISS（第三周）
 - LangChain（第三至第四周接入）
 - 自然语言查数与分析入口（第四周）
+- baseline / FAISS 双模式检索接入统一入口（第四周）
+- langchain-ollama（第四周）
 
 ### 计划在后续周次实现
 
