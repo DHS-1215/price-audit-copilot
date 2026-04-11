@@ -329,6 +329,247 @@ Price Audit Copilot 面向电商商品价格审核场景，目标是把爬取后
 
 > 规则知识库 + baseline retriever + 向量检索 + 解释链，为第四周统一问答入口打下基础。
 
+## 第四周已完成内容
+
+第四周的重点不是继续扩底层规则，也不是先做前端，而是把前几周已经形成的能力整合成一个统一问答入口，让系统开始更像一个真正可用的 Copilot。
+
+一句话概括：
+
+> 让系统从“多个独立能力模块”，升级成“具备统一 ask 入口的 Copilot 原型”。
+
+### 1. 统一 ask 入口
+
+已完成统一问答入口。  
+对应模块：`app/api/routes_ask.py`
+
+当前统一入口支持以下问题类型：
+
+- 数据分析类问题
+- 规则检索类问题
+- 异常解释类问题
+- 混合问答类问题
+
+当前能力包括：
+
+- 自动识别问题类型
+- 根据问题路由到不同工具
+- 返回统一结构结果
+- 输出工具调用 trace
+
+当前 `/ask` 返回结果已统一包含以下字段：
+
+- `route`
+- `answer`
+- `tools_used`
+- `analysis_result`
+- `retrieval_result`
+- `explanation_result`
+- `trace`
+
+这意味着第四周已经不再只是“分别调用几个模块”，而是开始具备统一调度能力。
+
+### 2. 汇报生成工具层
+
+已完成汇报生成工具层封装。  
+对应模块：`app/tools/report_tools.py`
+
+当前能力包括：
+
+- 根据数据分析结果生成简短汇报
+- 根据规则检索结果补充规则依据说明
+- 自动拼接复核建议
+- 为 mixed 问题输出更适合业务阅读的说明文本
+
+该模块的作用是：
+
+> 把 analysis / retrieval / explanation 的结果，组织成更像业务汇报的话术输出。
+
+这使系统开始具备“从结果到说明”的能力，而不只是返回原始 JSON。
+
+### 3. 工具调用日志落盘
+
+已完成统一 ask 入口的日志落盘能力。  
+对应模块：`app/tools/log_tools.py`
+
+当前能力包括：
+
+- 记录每次 `/ask` 调用时间
+- 记录用户问题
+- 记录问题路由结果
+- 记录实际调用工具
+- 记录最终回答
+- 记录 trace 链路
+- 将结果追加写入本地 JSONL 日志文件
+
+当前日志文件：
+
+- `data/outputs/ask_logs.jsonl`
+
+这一步的意义是：
+
+> 让统一问答入口具备最基础的可追踪能力，便于调试、验收和后续前端展示。
+
+### 4. baseline / FAISS 双模式检索接入统一入口
+
+第四周在第三周规则检索能力基础上，进一步完成了双模式检索接入统一 ask 入口。  
+对应模块：
+
+- `app/tools/retrieval_tools.py`
+- `app/tools/explanation_tools.py`
+- `app/rag/faiss_retriever.py`
+
+当前统一入口已经支持：
+
+- `baseline` 检索模式
+- `faiss` 向量检索模式
+
+当前能力包括：
+
+- 在规则检索类问题中切换 baseline / FAISS
+- 在异常解释类问题中切换 baseline / FAISS
+- 在 mixed 问题中切换 baseline / FAISS
+- 在返回结果中标记当前检索模式
+
+当前第四周对比结论是：
+
+- baseline 更适合规则型、可控型问题
+- FAISS 更适合自然语言、FAQ 风格问题
+- baseline 更像“稳”
+- FAISS 更像“宽”
+
+对应对比文档：
+
+- `data/eval/week4_retrieval_comparison.md`
+
+### 5. 第四周正式验收
+
+已补充第四周统一 ask 入口的验收用例与验收结果：
+
+- `data/eval/week4_acceptance_cases.md`
+- `data/eval/week4_acceptance_results.md`
+
+当前验收覆盖内容包括：
+
+#### A组：数据分析类
+
+- 近7天哪个平台异常低价最多
+
+#### B组：规则检索类
+
+- 如果标题不完整，规则上该怎么处理
+
+#### C组：异常解释类
+
+- 为什么这个商品会被判成高风险
+
+#### D组：混合问答类
+
+- 先找出低价商品，再按规则给我写一段简短汇报
+
+#### E组：附加能力验收
+
+- 统一返回结构
+- 问答日志落盘
+
+当前第四周验收结论：
+
+- analysis：通过
+- retrieval：通过
+- explanation：通过
+- mixed：通过
+- 日志落盘：通过
+
+这说明第四周手写编排版统一 ask 入口已经完成第一轮正式收口。
+
+### 6. LangChain 正式接入
+
+在完成手写编排版 `/ask` 后，第四周进一步补充了 LangChain 正式接入。  
+对应模块：
+
+- `app/chain/langchain_tools.py`
+- `app/chain/ask_agent.py`
+- `app/api/routes_ask_langchain.py`
+
+新增接口：
+
+- `POST /ask-lc`
+
+当前 LangChain 接入内容包括：
+
+- 将现有业务函数封装成 LangChain tools
+- 基于 Ollama + LangChain 构建 agent 调度链
+- 支持 analysis / retrieval / explanation 问题的 tool calling
+- mixed 场景最终采用“LangChain + 受控汇报流程”的方式处理
+
+当前 LangChain 版能力验证结论：
+
+- analysis：通过
+- retrieval：通过
+- explanation：通过
+- mixed：通过（采用受控流程）
+
+对应记录文档：
+
+- `data/eval/week4_langchain_integration.md`
+
+这意味着第四周最终形成了两条并行能力：
+
+- 手写编排版 `/ask`
+- LangChain 版 `/ask-lc`
+
+它们的定位分别是：
+
+- `/ask`：更稳，更适合结果可控与正式验收
+- `/ask-lc`：更适合展示 tool calling 与模型调工具能力
+
+### 7. 第四周当前可演示能力
+
+当前系统已经可以演示以下问题：
+
+#### 数据分析类
+
+- 近7天哪个平台异常低价最多？
+- 当前低价样本有哪些？
+
+#### 规则检索类
+
+- 如果标题不完整，规则上该怎么处理？
+- 低价异常规则是怎么定义的？
+
+#### 异常解释类
+
+- 为什么这个商品会被判成高风险？
+- 为什么这个商品会被判成疑似异常低价？
+
+#### 混合问答类
+
+- 先找出低价商品，再按规则给我写一段简短汇报。
+
+这说明项目已经从第三周的“规则依据解释层”，进一步升级到了第四周的“统一问答入口层”。
+
+### 8. 第四周设计取舍
+
+第四周没有一开始就直接把所有问题都交给 LangChain 自由 agent 处理，而是先完成了一版手写编排版统一 ask 入口。
+
+这样做的原因是：
+
+- 先保证业务主链稳定
+- 先让 analysis / retrieval / explanation / mixed 四类问题跑通
+- 先建立统一输出结构
+- 先建立日志与验收体系
+
+在手写版完成验收后，再补上 LangChain 正式接入。
+
+第四周进一步验证了一个结论：
+
+- 自由 agent 在 analysis / explanation 场景下表现较稳
+- retrieval 场景更容易出现标题级证据扩写
+- mixed 场景在真实业务里不适合完全交给自由 agent 猜流程
+
+因此第四周当前更准确的定位是：
+
+> 手写编排版统一 ask 入口 + LangChain 正式接入，为第五周前端展示与工作流扩展打下基础。
+
 ## 技术栈
 
 ### 已实现
@@ -345,12 +586,11 @@ Price Audit Copilot 面向电商商品价格审核场景，目标是把爬取后
 - RAG / 检索增强 baseline（第三周）
 - Embedding + 向量库检索（第三周收口 / 第四周前完成）
 - FAISS（第三周）
+- LangChain（第三至第四周接入）
+- 自然语言查数与分析入口（第四周）
 
 ### 计划在后续周次实现
 
-- LangChain（第三至第四周接入）
-- LangGraph（第四周后视流程复杂度接入）
-- 自然语言查数与分析入口（第四周）
 - Streamlit（第五周）
 - Docker（第六周）
 - 评测与结果验证（第六周）
