@@ -14,6 +14,7 @@ from typing import Any
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 from app.tools.report_tools import build_brief_report
+from app.tools.log_tools import append_ask_log, build_ask_log_record
 
 # 1. 导入已有能力
 # 第一周已有：通用模型问答（作为兜底用）
@@ -537,7 +538,7 @@ def ask(req: AskRequest):
                 )
             )
 
-            return AskResponse(
+            response = AskResponse(
                 route="analysis",
                 answer=analysis_result.get("summary", "分析完成。"),
                 tools_used=tools_used,
@@ -546,6 +547,20 @@ def ask(req: AskRequest):
                 explanation_result=None,
                 trace=trace if req.include_trace else [],
             )
+
+            log_record = build_ask_log_record(
+                question=question,
+                route=response.route,
+                tools_used=response.tools_used,
+                answer=response.answer,
+                analysis_result=response.analysis_result,
+                retrieval_result=response.retrieval_result,
+                explanation_result=response.explanation_result,
+                trace=trace,
+            )
+            append_ask_log(log_record)
+
+            return response
 
         # retrieval：规则检索类问题
         if route == "retrieval":
@@ -566,7 +581,7 @@ def ask(req: AskRequest):
                 )
             )
 
-            return AskResponse(
+            response = AskResponse(
                 route="retrieval",
                 answer=summary,
                 tools_used=tools_used,
@@ -575,6 +590,20 @@ def ask(req: AskRequest):
                 explanation_result=None,
                 trace=trace if req.include_trace else [],
             )
+
+            log_record = build_ask_log_record(
+                question=question,
+                route=response.route,
+                tools_used=response.tools_used,
+                answer=response.answer,
+                analysis_result=response.analysis_result,
+                retrieval_result=response.retrieval_result,
+                explanation_result=response.explanation_result,
+                trace=trace,
+            )
+            append_ask_log(log_record)
+
+            return response
 
         # explanation：单条异常解释类问题
         if route == "explanation":
@@ -594,7 +623,7 @@ def ask(req: AskRequest):
                 )
             )
 
-            return AskResponse(
+            response = AskResponse(
                 route="explanation",
                 answer=explanation_result.get("final_explanation", "解释完成。"),
                 tools_used=tools_used,
@@ -604,11 +633,24 @@ def ask(req: AskRequest):
                 trace=trace if req.include_trace else [],
             )
 
+            log_record = build_ask_log_record(
+                question=question,
+                route=response.route,
+                tools_used=response.tools_used,
+                answer=response.answer,
+                analysis_result=response.analysis_result,
+                retrieval_result=response.retrieval_result,
+                explanation_result=response.explanation_result,
+                trace=trace,
+            )
+            append_ask_log(log_record)
+
+            return response
+
         # mixed：混合类问题
         if route == "mixed":
             tools_used.extend(["analysis_tools", "retrieval_tools", "report_tools"])
 
-            # 先查数据事实
             analysis_result = analyze_price_data(question)
             trace.append(
                 build_trace_item(
@@ -619,7 +661,6 @@ def ask(req: AskRequest):
                 )
             )
 
-            # 再查规则依据
             retrieval_result = search_rules(
                 query=question,
                 top_k=req.top_k,
@@ -634,7 +675,6 @@ def ask(req: AskRequest):
                 )
             )
 
-            # 最后由 report_tools 生成简短汇报
             final_answer = build_brief_report(
                 question=question,
                 analysis_result=analysis_result,
@@ -649,7 +689,7 @@ def ask(req: AskRequest):
                 )
             )
 
-            return AskResponse(
+            response = AskResponse(
                 route="mixed",
                 answer=final_answer,
                 tools_used=tools_used,
@@ -658,6 +698,20 @@ def ask(req: AskRequest):
                 explanation_result=None,
                 trace=trace if req.include_trace else [],
             )
+
+            log_record = build_ask_log_record(
+                question=question,
+                route=response.route,
+                tools_used=response.tools_used,
+                answer=response.answer,
+                analysis_result=response.analysis_result,
+                retrieval_result=response.retrieval_result,
+                explanation_result=response.explanation_result,
+                trace=trace,
+            )
+            append_ask_log(log_record)
+
+            return response
 
         # unknown：暂时无法准确识别类型，走通用模型兜底
         tools_used.append("ask_llm")
@@ -672,7 +726,7 @@ def ask(req: AskRequest):
             )
         )
 
-        return AskResponse(
+        response = AskResponse(
             route="unknown",
             answer=answer,
             tools_used=tools_used,
@@ -681,6 +735,20 @@ def ask(req: AskRequest):
             explanation_result=None,
             trace=trace if req.include_trace else [],
         )
+
+        log_record = build_ask_log_record(
+            question=question,
+            route=response.route,
+            tools_used=response.tools_used,
+            answer=response.answer,
+            analysis_result=response.analysis_result,
+            retrieval_result=response.retrieval_result,
+            explanation_result=response.explanation_result,
+            trace=trace,
+        )
+        append_ask_log(log_record)
+
+        return response
 
     except HTTPException:
         # HTTPException 直接抛回去，不做二次包裹
