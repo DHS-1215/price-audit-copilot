@@ -153,9 +153,9 @@ def embed_query(
 
 # 对规则知识库做向量检索
 def search_faiss_rules(
-    query: str,
-    top_k: int = DEFAULT_TOP_K,
-    faiss_relative_dir: str = DEFAULT_FAISS_DIR,
+        query: str,
+        top_k: int = DEFAULT_TOP_K,
+        faiss_relative_dir: str = DEFAULT_FAISS_DIR,
 ) -> dict[str, Any]:
     """
     对规则知识库做向量检索。
@@ -220,6 +220,10 @@ def search_faiss_rules(
         "embed_model": embed_model,
         "results": results,
     }
+
+
+def retrieve_rules_faiss(query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, Any]:
+    return search_faiss_rules(query=query, top_k=top_k)
 
 
 """7. 调试打印"""

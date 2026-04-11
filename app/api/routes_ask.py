@@ -7,7 +7,7 @@ IDE       :PyCharm
 作者      :董宏升
 """
 # 每次解决问题，我都在成长，不要着急，不要气馁！
-
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -472,7 +472,7 @@ def select_best_matching_row(df: pd.DataFrame, question: str) -> dict[str, Any]:
     return anomaly_df.loc[best_idx].to_dict()
 
 
-def run_explanation(question: str, top_k: int) -> dict[str, Any]:
+def run_explanation(question: str, top_k: int, retrieval_mode: str = 'baseline') -> dict[str, Any]:
     """
     explanation 类问题的真正执行入口。
 
@@ -488,7 +488,7 @@ def run_explanation(question: str, top_k: int) -> dict[str, Any]:
     """
     df = load_analyzed_df()
     row = select_best_matching_row(df, question)
-    return explain_anomaly_row(row=row, user_question=question, top_k=top_k)
+    return explain_anomaly_row(row=row, user_question=question, top_k=top_k, retrieval_mode=retrieval_mode, )
 
 
 # 10. 对外主入口：/ask
@@ -510,11 +510,23 @@ def ask(req: AskRequest):
     - mixed
     - unknown（兜底走通用模型）
     """
+    print("ask() 收到请求：", req.model_dump())
+    print("准备读取 question 和 use_vector")
+    question = req.question.strip()
+    retrieval_mode = "faiss" if req.use_vector else "baseline"
+    print("question =", question)
+    print("retrieval_mode =", retrieval_mode)
+
+    print("准备 detect_route")
+    route = detect_route(question)
+    print("route =", route)
+
     trace: list[ToolTraceItem] = []
     tools_used: list[str] = []
 
     try:
         question = req.question.strip()
+        retrieval_mode = 'faiss' if req.use_vector else 'baseline'
 
         # 防止空问题
         if not question:
@@ -564,12 +576,20 @@ def ask(req: AskRequest):
 
         # retrieval：规则检索类问题
         if route == "retrieval":
+            print("进入 retrieval 分支")
+            print("question =", question)
+            print("retrieval_mode =", retrieval_mode)
+
             tools_used.append("retrieval_tools")
 
+            print("调用 search_rules 前")
             retrieval_result = search_rules(
                 query=question,
                 top_k=req.top_k,
+                mode=retrieval_mode,
             )
+            print("调用 search_rules 后")
+
             summary = build_rule_search_summary(retrieval_result)
 
             trace.append(
@@ -577,7 +597,7 @@ def ask(req: AskRequest):
                     2,
                     "retrieval_tools",
                     "success",
-                    summary,
+                    f"{summary} 当前检索模式：{retrieval_mode}",
                 )
             )
 
@@ -591,18 +611,6 @@ def ask(req: AskRequest):
                 trace=trace if req.include_trace else [],
             )
 
-            log_record = build_ask_log_record(
-                question=question,
-                route=response.route,
-                tools_used=response.tools_used,
-                answer=response.answer,
-                analysis_result=response.analysis_result,
-                retrieval_result=response.retrieval_result,
-                explanation_result=response.explanation_result,
-                trace=trace,
-            )
-            append_ask_log(log_record)
-
             return response
 
         # explanation：单条异常解释类问题
@@ -612,6 +620,7 @@ def ask(req: AskRequest):
             explanation_result = run_explanation(
                 question=question,
                 top_k=req.top_k,
+                retrieval_mode=retrieval_mode,
             )
 
             trace.append(
@@ -664,6 +673,7 @@ def ask(req: AskRequest):
             retrieval_result = search_rules(
                 query=question,
                 top_k=req.top_k,
+                mode=retrieval_mode,
             )
             retrieval_summary = build_rule_search_summary(retrieval_result)
             trace.append(
@@ -671,7 +681,7 @@ def ask(req: AskRequest):
                     3,
                     "retrieval_tools",
                     "success",
-                    retrieval_summary,
+                    f'{retrieval_summary} 当前检索模式：{retrieval_mode}',
                 )
             )
 
@@ -754,14 +764,31 @@ def ask(req: AskRequest):
         # HTTPException 直接抛回去，不做二次包裹
         raise
 
+
     except Exception as e:
-        # 其他异常统一塞进 trace，方便调试
+
+        print("\n" + "=" * 100)
+
+        print("ask() 发生未捕获异常，开始打印 traceback：")
+
+        traceback.print_exc()
+
+        print("=" * 100 + "\n")
+
         trace.append(
+
             build_trace_item(
+
                 len(trace) + 1,
+
                 "ask_pipeline",
+
                 "failed",
-                str(e),
+
+                f"{type(e).__name__}: {e}",
+
             )
+
         )
-        raise HTTPException(status_code=500, detail=str(e))
+
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")

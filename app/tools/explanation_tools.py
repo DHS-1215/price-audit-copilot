@@ -430,11 +430,13 @@ def explain_anomaly_row(
         row: dict[str, Any],
         user_question: str | None = None,
         top_k: int = 3,
+        retrieval_mode: str = 'baseline',
 ) -> dict[str, Any]:
     """
     :param row:一条异常样本记录（可以是 DataFrame.to_dict后的一行）
     :param user_question:可选，用户原始问题；不传则自动生成规则查询问句。
     :param top_k:检索几条规则证据
+    :param retrieval_mode: 规则检索模式，支持 baseline / faiss
 
     输出：
         - facts:结果层事实
@@ -465,7 +467,7 @@ def explain_anomaly_row(
         rule_query = raw_question
 
     # 去规则层检索证据
-    rule_search = search_rules(query=rule_query, top_k=top_k)
+    rule_search = search_rules(query=rule_query, top_k=top_k, mode=retrieval_mode, )
 
     # 结果层解释：先讲发生了什么
     fact_explanation = build_fact_explanation(facts)

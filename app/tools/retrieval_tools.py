@@ -25,7 +25,11 @@ IDE       :PyCharm
 # 每次解决问题，我都在成长，不要着急，不要气馁！
 import re
 from typing import Any
-from app.rag.retriever import retrieve_rules
+from app.rag.retriever import retrieve_rules as retrieve_rules_baseline
+import importlib
+
+print("已加载 retrieval_tools.py 文件路径：", __file__)
+print("retrieve_rules_baseline 是否可调用：", callable(retrieve_rules_baseline))
 
 """1. 基础配置"""
 DEFAULT_TOP_K = 3
@@ -110,6 +114,126 @@ def infer_rule_topic(preferred_doc_ids: list[str]) -> str:
     return DOC_TOPIC_LABELS.get(first_doc_id, "通用规则")
 
 
+# 动态加载 FAISS 检索器的对外主函数。
+def load_faiss_retriever_callable():
+    module = importlib.import_module("app.rag.faiss_retriever")
+
+    candidate_names = [
+        "retrieve_rules_faiss",
+        "search_rules_faiss",
+        "retrieve_rules",
+        "search_rules",
+        'search_faiss_rules',
+    ]
+
+    for name in candidate_names:
+        fn = getattr(module, name, None)
+        if callable(fn):
+            return fn
+
+    raise AttributeError(
+        "app.rag.faiss_retriever 中未找到可用的检索函数。"
+        "请确认该文件里是否暴露了 retrieve_rules_faiss / search_rules_faiss / retrieve_rules / search_rules。"
+    )
+
+
+# 把不同检索器返回的结果，统一整理策划给你 retrieval_tools 能消费的格式。
+def normalize_retrieval_payload(payload: Any) -> dict[str, Any]:
+    """
+    baseline 目前通常返回：
+    {
+        "query_terms": ...,
+        "preferred_doc_ids": ...,
+        "results": [...]
+    }
+
+    但 FAISS 检索器有可能返回：
+    - 直接一个 list
+    - 或 dict，但字段名略有不同
+
+    所以这里做一个“统一适配层”。
+    """
+    # 1. 如果本来就是标准 dict，直接尽量兼容
+    if isinstance(payload, dict):
+        results = payload.get("results")
+        if isinstance(results, list):
+            return {
+                "query_terms": payload.get("query_terms", []) or [],
+                "preferred_doc_ids": payload.get("preferred_doc_ids", []) or [],
+                "results": results,
+            }
+
+        # 有些实现可能叫 hits / items
+        for candidate in ["hits", "items", "records"]:
+            if isinstance(payload.get(candidate), list):
+                return {
+                    "query_terms": payload.get("query_terms", []) or [],
+                    "preferred_doc_ids": payload.get("preferred_doc_ids", []) or [],
+                    "results": payload.get(candidate) or [],
+                }
+
+    # 2. 如果直接返回 list，就包装成标准结构
+    if isinstance(payload, list):
+        return {
+            "query_terms": [],
+            "preferred_doc_ids": [],
+            "results": payload,
+        }
+
+    # 3. 都不符合时，给个空结果兜底
+    return {
+        "query_terms": [],
+        "preferred_doc_ids": [],
+        "results": [],
+    }
+
+
+# 当某些检索器（如 FAISS）没显式返回 preferred_doc_id，我根据结果结果中出现的 doc_id 做轻量推断。
+def infer_preferred_doc_ids_from_results(raw_results: list[dict[str, Any]]) -> list[str]:
+    """
+    按检索结果顺序扫描，保留前几个不重复 doc_id
+    """
+    doc_ids: list[str] = []
+
+    for item in raw_results:
+        doc_id = safe_text(item.get("doc_id")).strip()
+        if not doc_id:
+            continue
+        if doc_id in doc_ids:
+            continue
+        doc_ids.append(doc_id)
+
+    return doc_ids
+
+
+# 根据模型选择使用 baseline 或 FAISS 检索
+def retrieve_rules_by_mode(query: str, top_k: int, mode: str = "baseline") -> dict[str, Any]:
+    """
+    mode:
+    - baseline：走第三周 baseline 检索
+    - faiss：走第三周 FAISS 向量检索
+    """
+    print("进入 retrieve_rules_by_mode")
+    print("query =", query)
+    print("mode =", mode)
+
+    if mode == "faiss":
+        print("准备走 FAISS 检索")
+    else:
+        print("准备走 baseline 检索")
+
+    mode = safe_text(mode).strip().lower() or "baseline"
+
+    if mode == "faiss":
+        faiss_fn = load_faiss_retriever_callable()
+        payload = faiss_fn(query=query, top_k=top_k)
+        return normalize_retrieval_payload(payload)
+
+    # 默认走 baseline
+    payload = retrieve_rules_baseline(query=query, top_k=top_k)
+    return normalize_retrieval_payload(payload)
+
+
 """3.  证据整理"""
 
 
@@ -182,11 +306,17 @@ def search_rules(
         query: str,
         top_k: int = DEFAULT_TOP_K,
         preview_chars: int = DEFAULT_PREVIEW_CHARS,
+        mode: str = "baseline",
 ) -> dict[str, Any]:
     """
     把底层 retriever 的结果，整理成上层系统能直接使用的工具输出。
     此处函数返回包含：
     query、topic（规则主题）、提取到的关键词、优先文档、evidence列表、一份便于后面系统直接塞 prompt 的 context_text
+
+    新增参数：
+    mode
+    - baseline：走规则型 baseline 检索
+    - faiss：走向量检索
     """
     query = normalize_user_query(query)
 
@@ -194,6 +324,7 @@ def search_rules(
         return {
             "ok": False,
             "query": query,
+            "mode": mode,
             "topic": "通用规则",
             "message": "查询为空，无法检索规则。",
             "query_terms": [],
@@ -203,11 +334,20 @@ def search_rules(
             "context_text": "",
         }
 
-    payload = retrieve_rules(query=query, top_k=top_k)
+    print("search_rules 已开始执行，mode =", mode)
+    payload = retrieve_rules_by_mode(
+        query=query,
+        top_k=top_k,
+        mode=mode,
+    )
 
     query_terms = payload.get("query_terms", []) or []
     preferred_doc_ids = payload.get("preferred_doc_ids", []) or []
     raw_results = payload.get("results", []) or []
+
+    # 如果检索器没有显式返回 preferred_doc_ids，就从结果里推断一份
+    if not preferred_doc_ids:
+        preferred_doc_ids = infer_preferred_doc_ids_from_results(raw_results)
 
     evidences: list[dict[str, Any]] = []
     for idx, item in enumerate(raw_results, start=1):
@@ -227,6 +367,7 @@ def search_rules(
     return {
         "ok": True,
         "query": query,
+        "mode": mode,
         "topic": topic,
         "message": "规则检索完成。" if evidences else "未检索到高相关规则片段。",
         "query_terms": query_terms,
