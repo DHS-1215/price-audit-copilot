@@ -64,13 +64,133 @@ def render_basic_result(result: dict[str, Any]) -> None:
         st.write(f"**Top K：** {result.get('top_k')}")
 
 
-# 先保留一个原始结果区，方便联调
+def render_analysis_section(result: dict[str, Any]) -> None:
+    analysis_result = result.get('analysis_result')
+    if not analysis_result:
+        return
+
+    st.subheader('分析结果')
+    summary = analysis_result.get('summary')
+    if summary:
+        st.info(summary)
+
+    stats = analysis_result.get('stats')
+    if isinstance(stats, list) and stats:
+        st.write('**统计信息**')
+        st.json(stats)
+
+    table = analysis_result.get('table')
+    if isinstance(table, list) and table:
+        st.write('**结果表预览**')
+        st.dataframe(table, use_container_width=True)
+
+
+def render_evidence_section(result: dict[str, Any]) -> None:
+    retrieval_result = result.get('retrieval_result')
+    if not retrieval_result:
+        return
+
+    evidences = retrieval_result.get('evidences', [])
+    if not evidences:
+        return
+
+    st.subheader('证据片段')
+
+    topic = retrieval_result.get('topic')
+    mode = retrieval_result.get('mode')
+    retrieved_count = retrieval_result.get('retrieved_count')
+
+    meta_parts = []
+    if topic:
+        meta_parts.append(f'规则主题：{topic}')
+
+    if mode:
+        meta_parts.append(f"检索模式：{mode}")
+
+    if retrieved_count is not None:
+        meta_parts.append(f'命中数量：{retrieved_count}')
+
+    if meta_parts:
+        st.caption('|'.join(meta_parts))
+
+    if meta_parts:
+        st.caption('|'.join(meta_parts))
+
+    for evidence in evidences:
+        rank = evidence.get('rank', '')
+        doc_title = evidence.get('doc_title', '')
+        section_title = evidence.get('section_title', '')
+        score = evidence.get('score', '')
+        preview_text = evidence.get('preview_text', '')
+
+        title = f"证据{rank} | {doc_title or '未知文档'}"
+        with st.expander(title, expanded=(rank == 1)):
+            if section_title:
+                st.write(f"**章节：** {section_title}")
+            st.write(f"**分数：** {score}")
+            if preview_text:
+                st.write(f"**摘要：** {preview_text}")
+
+            score_reasons = evidence.get("score_reasons")
+            if score_reasons:
+                st.write("**命中原因：**")
+                st.json(score_reasons)
+
+            body_text = evidence.get("body_text")
+            if body_text:
+                st.write("**正文片段：**")
+                st.code(body_text)
+
+            full_text = evidence.get("full_text")
+            if full_text and full_text != body_text:
+                st.write("**完整文本：**")
+                st.code(full_text)
+
+
+def render_explanation_section(result: dict[str, Any]) -> None:
+    explanation_result = result.get("explanation_result")
+    if not explanation_result:
+        return
+
+    st.subheader("异常解释")
+
+    final_explanation = explanation_result.get("final_explanation")
+    if final_explanation:
+        st.write(f"**最终解释：** {final_explanation}")
+
+    rule_summary = explanation_result.get("rule_summary")
+    if rule_summary:
+        st.write(f"**规则摘要：** {rule_summary}")
+
+    review_suggestion = explanation_result.get("review_suggestion")
+    if review_suggestion:
+        st.write(f"**复核建议：** {review_suggestion}")
+
+
+def render_trace_section(result: dict[str, Any]) -> None:
+    trace = result.get("trace", [])
+    if not trace:
+        return
+
+    st.subheader("工具调用链路")
+
+    for item in trace:
+        step = item.get("step", "")
+        tool_name = item.get("tool_name", "")
+        status = item.get("status", "")
+        note = item.get("note", "")
+
+        st.markdown(f"**Step {step} · {tool_name} · {status}**")
+        if note:
+            st.write(note)
+        st.divider()
+
+
 def render_raw_json(result: dict[str, Any]) -> None:
-    with st.expander('查看原始返回 JSON', expanded=False):
+    with st.expander("查看原始返回 JSON", expanded=False):
         st.code(
-            json.dumps(
-                result, ensure_ascii=False, indent=2, default=str
-            ), language='json',
+            json.dumps(result, ensure_ascii=False, indent=2, default=str),
+            language="json",
         )
 
 
@@ -92,7 +212,6 @@ def main() -> None:
             options=["标准模式 /ask", "LangChain 模式 /ask-lc"],
             index=0,
         )
-
         endpoint = "/ask" if api_mode == "标准模式 /ask" else "/ask-lc"
 
         retrieval_mode = st.radio(
@@ -120,7 +239,7 @@ def main() -> None:
     with col1:
         run_button = st.button("提交问题", use_container_width=True)
     with col2:
-        st.info("第一版目标：先跑通页面 -> 接口 -> 返回结果")
+        st.info("第二版目标：补分析结果、证据片段、异常解释和 trace 展示")
 
     if run_button:
         question = question.strip()
@@ -141,6 +260,10 @@ def main() -> None:
 
             st.success("调用成功。")
             render_basic_result(result)
+            render_analysis_section(result)
+            render_evidence_section(result)
+            render_explanation_section(result)
+            render_trace_section(result)
             render_raw_json(result)
 
         except requests.exceptions.RequestException as e:
