@@ -600,6 +600,19 @@ def ask(req: AskRequest):
                 trace=trace if req.include_trace else [],
             )
 
+            # 日志代码
+            log_record = build_ask_log_record(
+                question=question,
+                route=response.route,
+                tools_used=response.tools_used,
+                answer=response.answer,
+                analysis_result=response.analysis_result,
+                retrieval_result=response.retrieval_result,
+                explanation_result=response.explanation_result,
+                trace=trace,
+            )
+            append_ask_log(log_record)
+
             return response
 
         # explanation：单条异常解释类问题
