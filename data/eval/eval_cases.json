@@ -1,0 +1,442 @@
+[
+  {
+    "case_id": "A01",
+    "category": "analysis",
+    "question": "近7天哪个平台异常低价最多？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "返回异常低价数量最多的平台",
+      "analysis_result.ok = true",
+      "answer 与 analysis_result.summary 语义一致"
+    ]
+  },
+  {
+    "case_id": "A02",
+    "category": "analysis",
+    "question": "当前低价样本有哪些？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "返回疑似异常低价样本列表",
+      "analysis_result.row_count > 0",
+      "table 中包含品牌、规格、平台、价格等字段"
+    ]
+  },
+  {
+    "case_id": "A03",
+    "category": "analysis",
+    "question": "哪个品牌跨平台价差最大？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "返回跨平台价差最大的品牌",
+      "analysis_result.ok = true",
+      "answer 中出现品牌或价差结论"
+    ]
+  },
+  {
+    "case_id": "A04",
+    "category": "analysis",
+    "question": "哪些商品规格识别有风险？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "返回规格识别风险样本",
+      "analysis_result.row_count >= 0",
+      "answer 明确说明是否存在风险样本"
+    ]
+  },
+  {
+    "case_id": "A05",
+    "category": "analysis",
+    "question": "鸿茅 500ml 的低价样本有几条？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "按品牌和规格过滤低价样本",
+      "返回数量或样本列表",
+      "answer 包含鸿茅 500ml 相关结论"
+    ]
+  },
+  {
+    "case_id": "A06",
+    "category": "analysis",
+    "question": "显式阈值命中的低价样本有哪些？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "筛出显式阈值命中的样本",
+      "低价规则来源包含 explicit_rule 或 both",
+      "answer 明确这是显式阈值命中样本"
+    ]
+  },
+  {
+    "case_id": "A07",
+    "category": "analysis",
+    "question": "同时命中显式阈值和统计规则的样本有哪些？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "筛出低价规则来源为 both 的样本",
+      "analysis_result.ok = true",
+      "answer 明确提到同时命中两类规则"
+    ]
+  },
+  {
+    "case_id": "A08",
+    "category": "analysis",
+    "question": "淘宝平台的低价样本有多少？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "按平台过滤为淘宝",
+      "返回数量",
+      "answer 中出现淘宝平台"
+    ]
+  },
+  {
+    "case_id": "A09",
+    "category": "analysis",
+    "question": "拼多多平台的低价样本有多少？",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "按平台过滤为拼多多",
+      "返回数量",
+      "answer 中出现拼多多平台"
+    ]
+  },
+  {
+    "case_id": "A10",
+    "category": "analysis",
+    "question": "低价规则来源为 both 的样本请列出来。",
+    "expected_route": "analysis",
+    "expected_tools": [
+      "analysis_tools"
+    ],
+    "expected_core_points": [
+      "返回低价规则来源为 both 的样本",
+      "table 中包含低价规则来源字段",
+      "answer 明确说明为 both 样本"
+    ]
+  },
+  {
+    "case_id": "R01",
+    "category": "retrieval",
+    "question": "如果标题不完整，规则上该怎么处理？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中 FAQ 或规格归一相关规则文档",
+      "retrieval_result.ok = true",
+      "answer 不只是空泛回答，要有规则依据"
+    ]
+  },
+  {
+    "case_id": "R02",
+    "category": "retrieval",
+    "question": "低价异常规则是怎么定义的？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中低价异常规则文档",
+      "返回规则证据片段",
+      "answer 提到显式阈值或统计规则"
+    ]
+  },
+  {
+    "case_id": "R03",
+    "category": "retrieval",
+    "question": "跨平台价差异常是怎么判的？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中跨平台价差规则文档",
+      "retrieval_result.ok = true",
+      "answer 说明价差异常判定口径"
+    ]
+  },
+  {
+    "case_id": "R04",
+    "category": "retrieval",
+    "question": "规格归一一般怎么处理？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中规格归一规则文档",
+      "返回规格归一相关依据",
+      "answer 提到品牌或规格写法统一"
+    ]
+  },
+  {
+    "case_id": "R05",
+    "category": "retrieval",
+    "question": "人工复核时应该先看什么？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中人工复核流程文档",
+      "answer 给出复核顺序或重点",
+      "retrieval_result.ok = true"
+    ]
+  },
+  {
+    "case_id": "R06",
+    "category": "retrieval",
+    "question": "低价规则来源字段是什么意思？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中低价规则来源字段说明",
+      "answer 提到 explicit_rule / stat_rule / both 之一",
+      "返回规则证据片段"
+    ]
+  },
+  {
+    "case_id": "R07",
+    "category": "retrieval",
+    "question": "统计规则和显式阈值规则有什么区别？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中低价判定双轨规则文档",
+      "answer 比较两种规则差异",
+      "retrieval_result.ok = true"
+    ]
+  },
+  {
+    "case_id": "R08",
+    "category": "retrieval",
+    "question": "FAQ 里是怎么说明标题不完整这个问题的？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "优先命中 faq 文档",
+      "answer 明确提到 FAQ 或对应规则章节",
+      "返回证据摘要"
+    ]
+  },
+  {
+    "case_id": "R09",
+    "category": "retrieval",
+    "question": "规格风险识别主要依据什么？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中规格风险识别规则",
+      "answer 说明风险识别口径",
+      "retrieval_result.ok = true"
+    ]
+  },
+  {
+    "case_id": "R10",
+    "category": "retrieval",
+    "question": "复核低价样本时需要重点关注哪些价格口径？",
+    "expected_route": "retrieval",
+    "expected_tools": [
+      "retrieval_tools"
+    ],
+    "expected_core_points": [
+      "命中人工复核或低价规则文档",
+      "answer 提到券后价、补贴价、活动价、组合装等口径之一",
+      "返回规则依据"
+    ]
+  },
+  {
+    "case_id": "M01",
+    "category": "mixed",
+    "question": "先找出低价商品，再按规则给我写一段简短汇报。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "先有低价样本分析结果",
+      "再有规则依据",
+      "最终 answer 为业务汇报风格"
+    ]
+  },
+  {
+    "case_id": "M02",
+    "category": "mixed",
+    "question": "近7天哪个平台异常低价最多？再解释一下为什么会这样判。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "先返回平台分析结果",
+      "再补规则说明",
+      "最终结论既有事实又有依据"
+    ]
+  },
+  {
+    "case_id": "M03",
+    "category": "mixed",
+    "question": "先找出鸿茅 500ml 的低价样本，再说明规则依据。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "analysis_result 中有鸿茅 500ml 样本",
+      "retrieval_result 命中低价规则文档",
+      "answer 同时包含样本事实和规则依据"
+    ]
+  },
+  {
+    "case_id": "M04",
+    "category": "mixed",
+    "question": "先列出同时命中 both 的样本，再给我一段复核建议。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "筛出 low_price_rule_source = both 的样本",
+      "再结合规则给复核建议",
+      "最终 answer 是审核建议风格"
+    ]
+  },
+  {
+    "case_id": "M05",
+    "category": "mixed",
+    "question": "先看规格识别风险样本，再按规则写一个复核提醒。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "analysis_result 返回规格风险样本",
+      "retrieval_result 返回规格风险处理规则",
+      "answer 为复核提醒风格"
+    ]
+  },
+  {
+    "case_id": "M06",
+    "category": "mixed",
+    "question": "先找出跨平台价差最大的品牌，再解释规则口径。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "先有品牌与价差结论",
+      "再有跨平台价差规则依据",
+      "最终 answer 可读性强"
+    ]
+  },
+  {
+    "case_id": "M07",
+    "category": "mixed",
+    "question": "先看淘宝平台的低价样本，再总结是否需要人工复核。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "analysis_result 返回淘宝低价样本",
+      "retrieval_result 命中人工复核规则",
+      "answer 明确给出是否需要优先复核的判断"
+    ]
+  },
+  {
+    "case_id": "M08",
+    "category": "mixed",
+    "question": "先输出当前低价前10条，再按规则给我一段业务汇报。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "analysis_result.row_count > 0",
+      "retrieval_result 提供低价规则依据",
+      "answer 形成简短业务汇报"
+    ]
+  },
+  {
+    "case_id": "M09",
+    "category": "mixed",
+    "question": "先回答标题不完整时该怎么处理，再结合低价样本给复核建议。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "先有标题不完整处理规则",
+      "再关联到低价样本复核",
+      "最终 answer 是综合性建议"
+    ]
+  },
+  {
+    "case_id": "M10",
+    "category": "mixed",
+    "question": "请先统计当前疑似异常低价样本数量，再按规则总结最该优先复核什么。",
+    "expected_route": "mixed",
+    "expected_tools": [
+      "analysis_tools",
+      "retrieval_tools",
+      "report_tools"
+    ],
+    "expected_core_points": [
+      "analysis_result 给出疑似低价数量",
+      "retrieval_result 给出低价规则或复核规则依据",
+      "answer 明确优先复核项"
+    ]
+  }
+]
