@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI, HTTPException
-from app.api.routes_ask import router as ask_router
-from app.api.routes_ask_langchain import router as ask_langchain_router
+from app.api.v1.endpoints.ask import router as ask_router
+from app.api.v1.endpoints.ask_lc import router as ask_langchain_router
+from app.core.logger import setup_logging
 
 # 第一周：结构化抽取能力
-from app.core.llm_ollama import ask_llm, extract_product
+from app.llm.ollama_client import extract_product
 from app.core.schemas import (
-    AskRequest,
-    AskResponse,
     ExtractRequest,
     ProductExtractResult,
 )
+
+setup_logging()
 
 """
 FastAPI 应用主入口
@@ -27,6 +28,7 @@ app = FastAPI(
 # 把 routes_ask.py 里的 /ask 挂起来
 app.include_router(ask_router)
 app.include_router(ask_langchain_router)
+
 
 @app.get("/")
 def root():

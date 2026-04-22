@@ -593,7 +593,7 @@ def max_price_gap_by_brand(df: pd.DataFrame) -> pd.DataFrame:
 if __name__ == "__main__":
     project_root = Path(__file__).resolve().parents[2]
     input_path = project_root / "data" / "normalized_products_preview.csv"
-    output_path = project_root / "data" / "异常明细.csv"
+    output_path = project_root / "data" / "audit_results_preview.csv"
 
     print("实际读取文件：", input_path)
 

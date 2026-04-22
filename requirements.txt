@@ -8,3 +8,7 @@ faiss-cpu
 langchain
 langchain-ollama
 streamlit
+SQLAlchemy>=2.0
+alembic>=1.13
+PyMySQL>=1.1
+pydantic-settings

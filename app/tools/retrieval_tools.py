@@ -25,7 +25,7 @@ IDE       :PyCharm
 # 每次解决问题，我都在成长，不要着急，不要气馁！
 import re
 from typing import Any
-from app.rag.retriever import retrieve_rules as retrieve_rules_baseline
+from app.rag.retrievers.baseline_retriever import retrieve_rules as retrieve_rules_baseline
 import importlib
 
 """1. 基础配置"""
