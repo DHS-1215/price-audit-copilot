@@ -687,28 +687,36 @@ def explanation_as_dict(
 
 def find_demo_audit_result_id(db: Session) -> int:
     """
-    本地调试时，如果没有传 audit_result_id，则优先找一条具备 rule_hit 的已命中 audit_result。
+    本地调试时，如果没有传 audit_result_id，则优先选择一条具备完整解释链的命中样本。
 
-    这样避免自动选到 legacy audit_result，导致只能走 fallback。
+    选择条件：
+    1. audit_result.is_hit = True；
+    2. rule_hit.is_hit = True；
+    3. audit_result 与 rule_hit 能正常关联；
+    4. 优先按 audit_result.id 升序取第一条。
+
+    这样可以避免自动选到 legacy audit_result，
+    导致只有 audit_result，没有 rule_hit / rule_definition / citation。
     """
     row = (
-        db.query(AuditResult)
+        db.query(AuditResult.id)
         .join(RuleHit, RuleHit.audit_result_id == AuditResult.id)
         .filter(
             AuditResult.is_hit.is_(True),
             RuleHit.is_hit.is_(True),
         )
+        .group_by(AuditResult.id)
         .order_by(AuditResult.id.asc())
         .first()
     )
 
     if row is None:
         raise ValueError(
-            "当前数据库中没有同时具备 audit_result + rule_hit 的命中样本，"
+            "当前数据库中没有同时具备 audit_result + rule_hit 的正向命中样本，"
             "无法自动演示完整解释链。请先运行 4号窗口规则引擎，生成 rule_hit。"
         )
 
-    return row.id
+    return int(row[0])
 
 
 def parse_args() -> argparse.Namespace:
