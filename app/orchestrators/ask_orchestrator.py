@@ -36,7 +36,9 @@ from app.tools.analysis_tools import (
     max_price_gap_by_brand,
 )
 from app.tools.explanation_tools import explain_anomaly_row
-from app.tools.retrieval_tools import build_rule_search_summary, search_rules
+from app.rag.retrieval_service import search_rules_simple
+from app.rag.rule_explanation_service import explain_audit_result_simple
+from app.rag.schemas import RetrievalMode, RetrievalResponse, ExplanationSchema
 from app.tools.report_tools import build_brief_report
 from app.tools.log_tools import append_ask_log, build_ask_log_record
 
@@ -373,6 +375,127 @@ def run_explanation(question: str, top_k: int, retrieval_mode: str = "baseline")
     )
 
 
+def select_retrieval_mode(use_vector: bool) -> RetrievalMode:
+    """
+    6号窗口第二批正式检索模式选择。
+
+    use_vector=True：
+        走纯 vector，便于测试语义召回。
+
+    use_vector=False：
+        默认走 hybrid，符合 5号窗口交接口径。
+    """
+    return RetrievalMode.VECTOR if use_vector else RetrievalMode.HYBRID
+
+
+def model_to_dict(value: Any) -> dict[str, Any]:
+    """
+    兼容 Pydantic v2 model_dump。
+    """
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if isinstance(value, dict):
+        return value
+    return {"value": value}
+
+
+def build_retrieval_answer(response: RetrievalResponse) -> str:
+    """
+    基于 5号窗口 RetrievalResponse 构建 /ask retrieval 回答。
+    """
+    if not response.results:
+        return "当前没有检索到明确相关的规则依据。"
+
+    top = response.results[0]
+    doc_title = top.doc_title or "规则文档"
+    section_title = top.section_title or "相关章节"
+
+    return (
+        f"当前检索模式为 {response.retrieval_mode.value}，共返回 {response.total} 条规则依据。"
+        f"最相关依据来自《{doc_title}》的《{section_title}》。"
+    )
+
+
+def build_mixed_retrieval_query(question: str, analysis_result: dict[str, Any] | None) -> str:
+    """
+    mixed 场景不能直接拿原问题做规则检索。
+
+    原问题通常是：
+    “先统计当前异常情况，再结合规则写一段简短汇报”
+
+    这种 query 太宽，会检索到平台字段、价格清洗等通用规则。
+    所以这里根据 analysis_result 收紧检索问题。
+    """
+    if not analysis_result:
+        return question
+
+    analysis_type = str(analysis_result.get("analysis_type") or "").strip()
+    stats = analysis_result.get("stats") or {}
+
+    if analysis_type == "suspected_low_price_items":
+        return "低价异常规则是怎么定义的？低价样本复核时应重点关注什么？"
+
+    if analysis_type == "count_low_price_by_platform":
+        return "低价异常规则是怎么定义的？平台低价样本复核时应关注什么？"
+
+    if analysis_type == "max_price_gap_by_brand":
+        return "跨平台价差异常是怎么定义的？跨平台价差复核时应关注什么？"
+
+    if analysis_type == "spec_risk_items":
+        return "规格识别风险是怎么定义的？标题规格与规格列不一致时应怎么处理？"
+
+    if analysis_type == "overview":
+        focus_parts: list[str] = []
+
+        if int(stats.get("low_price_count") or 0) > 0:
+            focus_parts.append("低价异常规则")
+
+        if int(stats.get("cross_platform_count") or 0) > 0:
+            focus_parts.append("跨平台价差异常规则")
+
+        if int(stats.get("spec_risk_count") or 0) > 0:
+            focus_parts.append("规格识别风险规则")
+
+        if focus_parts:
+            return "、".join(focus_parts) + "分别是什么？业务人员复核时应关注什么？"
+
+    return question
+
+
+def run_structured_explanation_if_possible(
+        req: AskRequest,
+        retrieval_mode: RetrievalMode,
+) -> ExplanationSchema | None:
+    """
+    优先走 5号窗口正式解释链。
+
+    条件：
+    1. 有 audit_result_id
+    2. 或者有 clean_id + anomaly_type
+
+    没有这些结构化参数时，暂时返回 None，
+    由旧 CSV 解释链兜底。
+    """
+    if req.audit_result_id is not None:
+        return explain_audit_result_simple(
+            audit_result_id=req.audit_result_id,
+            retrieval_mode=retrieval_mode,
+            chunk_top_k=min(req.top_k, 5),
+            rerank_enabled=False,
+        )
+
+    if req.clean_id is not None and req.anomaly_type:
+        return explain_audit_result_simple(
+            clean_id=req.clean_id,
+            anomaly_type=req.anomaly_type,
+            retrieval_mode=retrieval_mode,
+            chunk_top_k=min(req.top_k, 5),
+            rerank_enabled=False,
+        )
+
+    return None
+
+
 def finalize_response(
         req: AskRequest,
         route: str,
@@ -382,11 +505,15 @@ def finalize_response(
         analysis_result: dict[str, Any] | None = None,
         retrieval_result: dict[str, Any] | None = None,
         explanation_result: dict[str, Any] | None = None,
+        route_reason: str | None = None,
+        retrieval_mode: str | None = None,
 ) -> AskResponse:
     response = AskResponse(
         route=route,
         answer=answer,
         tools_used=tools_used,
+        route_reason=route_reason,
+        retrieval_mode=retrieval_mode,
         analysis_result=analysis_result,
         retrieval_result=retrieval_result,
         explanation_result=explanation_result,
@@ -437,7 +564,7 @@ def run_ask(req: AskRequest) -> AskResponse:
         if not question:
             raise HTTPException(status_code=400, detail="question 不能为空。")
 
-        retrieval_mode = "faiss" if req.use_vector else "baseline"
+        retrieval_mode = select_retrieval_mode(req.use_vector)
 
         route, route_reason = detect_route(question)
         trace.append(
@@ -474,48 +601,87 @@ def run_ask(req: AskRequest) -> AskResponse:
             )
 
         if route == "retrieval":
-            tools_used.append("retrieval_tools")
+            tools_used.append("retrieval_service")
 
-            retrieval_result = search_rules(
+            retrieval_response = search_rules_simple(
                 query=question,
                 top_k=req.top_k,
-                mode=retrieval_mode,
+                retrieval_mode=retrieval_mode,
+                rerank_enabled=False,
             )
-            summary = build_rule_search_summary(retrieval_result)
+
+            retrieval_result = model_to_dict(retrieval_response)
+            answer = build_retrieval_answer(retrieval_response)
 
             trace.append(
                 build_trace_item(
                     2,
-                    "retrieval_tools",
+                    "retrieval_service",
                     "success",
-                    f"{summary} 当前检索模式：{retrieval_mode}",
+                    f"{answer}",
                 )
             )
 
             return finalize_response(
                 req=req,
                 route="retrieval",
-                answer=summary,
+                answer=answer,
                 tools_used=tools_used,
                 analysis_result=None,
                 retrieval_result=retrieval_result,
                 explanation_result=None,
                 trace=trace,
+                route_reason=route_reason,
+                retrieval_mode=retrieval_mode.value,
             )
 
         if route == "explanation":
-            tools_used.append("explanation_tools")
+            structured_explanation = run_structured_explanation_if_possible(
+                req=req,
+                retrieval_mode=retrieval_mode,
+            )
+
+            if structured_explanation is not None:
+                tools_used.append("rule_explanation_service")
+
+                explanation_result = model_to_dict(structured_explanation)
+                answer = structured_explanation.final_summary
+
+                trace.append(
+                    build_trace_item(
+                        2,
+                        "rule_explanation_service",
+                        "success",
+                        structured_explanation.final_summary,
+                    )
+                )
+
+                return finalize_response(
+                    req=req,
+                    route="explanation",
+                    answer=answer,
+                    tools_used=tools_used,
+                    analysis_result=None,
+                    retrieval_result=None,
+                    explanation_result=explanation_result,
+                    trace=trace,
+                    route_reason=route_reason,
+                    retrieval_mode=retrieval_mode.value,
+                )
+
+            # 没有 audit_result_id / clean_id 时，保留旧 CSV 解释链兜底
+            tools_used.append("explanation_tools_fallback")
 
             explanation_result = run_explanation(
                 question=question,
                 top_k=req.top_k,
-                retrieval_mode=retrieval_mode,
+                retrieval_mode=retrieval_mode.value,
             )
 
             trace.append(
                 build_trace_item(
                     2,
-                    "explanation_tools",
+                    "explanation_tools_fallback",
                     "success",
                     safe_text(explanation_result.get("rule_summary")),
                 )
@@ -530,10 +696,12 @@ def run_ask(req: AskRequest) -> AskResponse:
                 retrieval_result=explanation_result.get("rule_search"),
                 explanation_result=explanation_result,
                 trace=trace,
+                route_reason=route_reason,
+                retrieval_mode=retrieval_mode.value,
             )
 
         if route == "mixed":
-            tools_used.extend(["analysis_tools", "retrieval_tools", "report_tools"])
+            tools_used.extend(["analysis_tools", "retrieval_service", "report_tools"])
 
             analysis_result = analyze_price_data(question)
             trace.append(
@@ -545,18 +713,39 @@ def run_ask(req: AskRequest) -> AskResponse:
                 )
             )
 
-            retrieval_result = search_rules(
-                query=question,
-                top_k=req.top_k,
-                mode=retrieval_mode,
+            retrieval_query = build_mixed_retrieval_query(
+                question=question,
+                analysis_result=analysis_result,
             )
-            retrieval_summary = build_rule_search_summary(retrieval_result)
+
+            retrieval_response = search_rules_simple(
+                query=retrieval_query,
+                top_k=req.top_k,
+                retrieval_mode=retrieval_mode,
+                rerank_enabled=False,
+            )
+
+            retrieval_result = model_to_dict(retrieval_response)
+            retrieval_summary = build_retrieval_answer(retrieval_response)
+
             trace.append(
                 build_trace_item(
                     3,
-                    "retrieval_tools",
+                    "retrieval_service",
                     "success",
-                    f"{retrieval_summary} 当前检索模式：{retrieval_mode}",
+                    f"{retrieval_summary} 检索问题：{retrieval_query}",
+                )
+            )
+
+            retrieval_result = model_to_dict(retrieval_response)
+            retrieval_summary = build_retrieval_answer(retrieval_response)
+
+            trace.append(
+                build_trace_item(
+                    3,
+                    "retrieval_service",
+                    "success",
+                    f"{retrieval_summary} 当前检索模式：{retrieval_mode.value}",
                 )
             )
 
@@ -583,6 +772,8 @@ def run_ask(req: AskRequest) -> AskResponse:
                 retrieval_result=retrieval_result,
                 explanation_result=None,
                 trace=trace,
+                route_reason=route_reason,
+                retrieval_mode=retrieval_mode.value,
             )
 
         tools_used.append("ask_llm")

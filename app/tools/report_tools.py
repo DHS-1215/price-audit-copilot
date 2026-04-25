@@ -112,20 +112,30 @@ def summarize_analysis_result(analysis_result: dict[str, Any]) -> str:
 # 给汇报挑一条“主依据”
 def choose_primary_evidence_for_report(retrieval_result: dict[str, Any]) -> dict[str, Any] | None:
     """
-    1. 优先选非 FAQ 文档
-    2. 如果全是 FAQ，退回第一条
+    兼容两种结构：
 
-    考虑到 FAQ 更像补充层，主规则文档更适合作为正式汇报里的主要依据来源。
+    旧结构：
+    retrieval_result["evidences"]
 
-    这个思路和第三周 explanation_tools 里的 choose_primary_evidence 很接近，
-    只是这里不直接跨文件调用，保持 report_tools 自己的边界清晰。
+    5号窗口正式结构：
+    retrieval_result["results"]
     """
     evidences = retrieval_result.get("evidences", []) or []
+
+    # 5号窗口正式 RetrievalResponse.model_dump() 后是 results
+    if not evidences:
+        evidences = retrieval_result.get("results", []) or []
+
     if not evidences:
         return None
 
     for evidence in evidences:
-        if safe_text(evidence.get("doc_id")) != "faq":
+        doc_id = safe_text(evidence.get("doc_id"))
+        doc_title = safe_text(evidence.get("doc_title"))
+        chunk_type = safe_text(evidence.get("chunk_type"))
+
+        # FAQ 更像补充层，优先跳过
+        if doc_id != "faq" and "FAQ" not in doc_title.upper() and chunk_type != "faq":
             return evidence
 
     return evidences[0]
@@ -134,16 +144,33 @@ def choose_primary_evidence_for_report(retrieval_result: dict[str, Any]) -> dict
 # 把规则检索结果整理成一段适合汇报使用的“依据说明”
 def summarize_retrieval_result(retrieval_result: dict[str, Any]) -> str:
     """
-    和 retrieval_tools.py 里的 build_rule_search_summary() 不同，这里更偏“汇报口吻”，而不是“接口工具摘要”
+    汇报用规则依据摘要。
+
+    同时兼容：
+    - 旧 retrieval_tools.search_rules 返回结构
+    - 5号窗口 RetrievalResponse.model_dump() 返回结构
     """
     if not retrieval_result:
         return "当前未取得规则依据。"
 
-    ok = bool(retrieval_result.get("ok", False))
+    # 旧结构有 ok，新结构一般没有 ok；没有 ok 时默认视为成功结构
+    ok = retrieval_result.get("ok", True)
     if not ok:
         return safe_text(retrieval_result.get("message")) or "规则检索失败。"
 
-    topic = safe_text(retrieval_result.get("topic")).strip() or "通用规则"
+    topic = safe_text(retrieval_result.get("topic")).strip()
+
+    if not topic:
+        # 新结构没有 topic，用第一条结果的 anomaly_type / rule_code 辅助说明
+        results = retrieval_result.get("results", []) or []
+        if results:
+            first = results[0]
+            anomaly_type = safe_text(first.get("anomaly_type"))
+            rule_code = safe_text(first.get("rule_code"))
+            topic = anomaly_type or rule_code or "规则依据"
+        else:
+            topic = "规则依据"
+
     primary = choose_primary_evidence_for_report(retrieval_result)
 
     if primary is None:
@@ -151,11 +178,18 @@ def summarize_retrieval_result(retrieval_result: dict[str, Any]) -> str:
 
     doc_title = safe_text(primary.get("doc_title")).strip()
     section_title = safe_text(primary.get("section_title")).strip()
+    retrieval_mode = safe_text(retrieval_result.get("retrieval_mode")).strip()
+
+    mode_text = f"当前检索模式为 {retrieval_mode}。" if retrieval_mode else ""
 
     if doc_title and section_title:
-        return f"规则依据方面，当前主要命中“{topic}”相关内容，主要参考《{doc_title}》的《{section_title}》章节。"
+        return (
+            f"规则依据方面，当前主要命中“{topic}”相关内容，"
+            f"主要参考《{doc_title}》的《{section_title}》章节。"
+            f"{mode_text}"
+        )
 
-    return f"规则依据方面，当前主要命中“{topic}”相关内容。"
+    return f"规则依据方面，当前主要命中“{topic}”相关内容。{mode_text}"
 
 
 """4. 复核建议"""
@@ -164,19 +198,34 @@ def summarize_retrieval_result(retrieval_result: dict[str, Any]) -> str:
 # 生成一条简短复核建议
 def build_review_advice(question: str, analysis_result: dict[str, Any], retrieval_result: dict[str, Any]) -> str:
     """
-    当前先用规则型建议，后面如果要做日报 or 周报，可以继续细化。
+    生成一条简短复核建议。
     """
     analysis_type = safe_text(analysis_result.get("analysis_type"))
     topic = safe_text(retrieval_result.get("topic"))
 
-    # 如果问题本身就是低价样本 + 规则汇报
-    if analysis_type == "suspected_low_price_items" or "低价" in topic:
+    results = retrieval_result.get("results", []) or []
+    first_result = results[0] if results else {}
+
+    anomaly_type = safe_text(first_result.get("anomaly_type"))
+    rule_code = safe_text(first_result.get("rule_code"))
+
+    combined_text = " ".join(
+        [
+            safe_text(question),
+            safe_text(topic),
+            safe_text(anomaly_type),
+            safe_text(rule_code),
+            analysis_type,
+        ]
+    )
+
+    if analysis_type == "suspected_low_price_items" or "低价" in combined_text or "low_price" in combined_text:
         return "建议后续优先复核低价样本的价格口径、活动口径及规格口径，确认是否存在券后价、补贴价或组合装等特殊情况。"
 
-    if "跨平台" in topic or "价差" in topic:
+    if "跨平台" in combined_text or "价差" in combined_text or "cross_platform_gap" in combined_text:
         return "建议进一步核对不同平台的价格采集口径、活动机制及规格映射是否一致。"
 
-    if "规格" in topic:
+    if "规格" in combined_text or "spec_risk" in combined_text:
         return "建议重点复核标题规格提示、规格列填写及规范化规格是否一致。"
 
     if has_report_intent(question):
