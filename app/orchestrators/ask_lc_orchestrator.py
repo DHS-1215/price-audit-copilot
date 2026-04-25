@@ -21,13 +21,51 @@ from langchain.agents import create_agent
 from langchain.tools import tool
 from langchain_ollama import ChatOllama
 
-from app.orchestrators.ask_orchestrator import analyze_price_data, run_explanation
-from app.tools.retrieval_tools import search_rules
+from app.orchestrators.ask_orchestrator import (
+    analyze_price_data,
+    run_explanation,
+    build_mixed_retrieval_query,
+    model_to_dict,
+)
+from app.rag.retrieval_service import search_rules_simple, normalize_retrieval_mode
+from app.rag.schemas import RetrievalMode
 from app.tools.report_tools import build_brief_report
 
 
 def _to_json_text(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False, default=str)
+
+def normalize_lc_retrieval_mode(mode: str | RetrievalMode | None) -> RetrievalMode:
+    """
+    /ask-lc 兼容旧 mode 写法。
+
+    旧版可能传：
+    - baseline
+    - faiss
+
+    新版正式支持：
+    - baseline
+    - vector
+    - hybrid
+    """
+    if isinstance(mode, RetrievalMode):
+        return mode
+
+    mode_text = str(mode or "").strip().lower()
+
+    if mode_text == "faiss":
+        return RetrievalMode.VECTOR
+
+    if mode_text == "vector":
+        return RetrievalMode.VECTOR
+
+    if mode_text == "baseline":
+        return RetrievalMode.BASELINE
+
+    if mode_text == "hybrid":
+        return RetrievalMode.HYBRID
+
+    return RetrievalMode.HYBRID
 
 
 @tool
@@ -40,12 +78,20 @@ def analyze_price_data_tool(question: str) -> str:
 
 
 @tool
-def search_rules_tool(question: str, top_k: int = 3, mode: str = "baseline") -> str:
+def search_rules_tool(question: str, top_k: int = 3, mode: str = "hybrid") -> str:
     """
-    处理规则检索类问题。
+    处理规则检索类问题，使用 5号窗口正式 retrieval_service。
     """
-    result = search_rules(query=question, top_k=top_k, mode=mode)
-    return _to_json_text(result)
+    retrieval_mode = normalize_lc_retrieval_mode(mode)
+
+    response = search_rules_simple(
+        query=question,
+        top_k=top_k,
+        retrieval_mode=retrieval_mode,
+        rerank_enabled=False,
+    )
+
+    return _to_json_text(model_to_dict(response))
 
 
 @tool
@@ -78,27 +124,33 @@ def build_report_rule_query(question: str, analysis_result: dict[str, Any] | Non
     return question
 
 
-def build_report_for_langchain(question: str, top_k: int = 3, mode: str = "baseline") -> str:
+def build_report_for_langchain(question: str, top_k: int = 3, mode: str = "hybrid") -> str:
     """
-    mixed / 汇报类问题的受控工具函数。
+    /ask-lc mixed 汇报工具。
 
-    注意：
-    - 这是给 /ask-lc 增强链用的
-    - 它内部仍然采用受控流程
-    - 不让 Agent 自己随意拼汇报
+    对齐 /ask 主链：
+    - 先 analysis
+    - 再生成更聚焦的 retrieval_query
+    - 再走 5号窗口正式 retrieval_service
+    - 最后 report_tools 生成业务汇报
     """
+    retrieval_mode = normalize_lc_retrieval_mode(mode)
+
     analysis_result = analyze_price_data(question)
 
-    retrieval_query = build_report_rule_query(
+    retrieval_query = build_mixed_retrieval_query(
         question=question,
         analysis_result=analysis_result,
     )
 
-    retrieval_result = search_rules(
+    retrieval_response = search_rules_simple(
         query=retrieval_query,
         top_k=top_k,
-        mode=mode,
+        retrieval_mode=retrieval_mode,
+        rerank_enabled=False,
     )
+
+    retrieval_result = model_to_dict(retrieval_response)
 
     return build_brief_report(
         question=question,
@@ -243,7 +295,7 @@ def run_langchain_ask(
     - 非 mixed 允许 Agent 调工具
     - 该链路不替代 /ask 主链
     """
-    retrieval_mode = "faiss" if use_vector else "baseline"
+    retrieval_mode = "vector" if use_vector else "hybrid"
     task_type = detect_langchain_task_type(question)
 
     if task_type == "mixed":
