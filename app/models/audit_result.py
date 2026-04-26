@@ -86,4 +86,10 @@ class AuditResult(Base, TimestampMixin):
         back_populates="audit_result",
         cascade="all, delete-orphan",
     )
+
+    rule_hits: Mapped[list["RuleHit"]] = relationship(
+        back_populates="audit_result",
+        cascade="all, delete-orphan",
+    )
+
     ask_logs: Mapped[list["AskLog"]] = relationship(back_populates="subject_audit_result")

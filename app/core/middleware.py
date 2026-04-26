@@ -1,12 +1,7 @@
+# app/core/middleware.py
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-"""
-创建时间    :2026/04/22 14:37
-IDE       :PyCharm
-作者      :董宏升
-"""
-# 每次解决问题，我都在成长，不要着急，不要气馁！
 import time
 
 from fastapi import FastAPI, Request
@@ -32,14 +27,12 @@ def register_middlewares(app: FastAPI) -> None:
 
         try:
             response = await call_next(request)
+            response.headers[settings.trace_header_name] = trace_id
+            return response
         except Exception:
-            # 异常继续往上抛给 handlers 统一处理
             logger.exception("请求处理异常")
             raise
         finally:
             elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
             logger.info("请求结束, cost_ms=%s", elapsed_ms)
-
-        response.headers[settings.trace_header_name] = trace_id
-        clear_request_context()
-        return response
+            clear_request_context()

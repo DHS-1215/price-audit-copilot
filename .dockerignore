@@ -1,25 +1,55 @@
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+
+# Virtual environments
 .venv/
 venv/
 env/
+
+# Build outputs
 dist/
 build/
 *.egg-info/
 
+# Git / IDE
 .git/
 .gitignore
-
 .idea/
 .vscode/
 
-data/outputs/*.jsonl
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Test / cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local database files
 *.db
 *.sqlite
 *.sqlite3
 
+# Local generated outputs
+data/outputs/*.jsonl
+data/legacy/*.db
+
+# Local vector indexes / generated stores
+data/vector/
+data/faiss/
+data/rag/rule_chunks.jsonl
+data/rag/rule_manifest.json
+
+# OS files
 .DS_Store
 Thumbs.db

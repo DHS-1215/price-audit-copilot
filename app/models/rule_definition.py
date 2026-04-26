@@ -54,3 +54,5 @@ class RuleDefinition(Base, TimestampMixin):
         cascade="all, delete-orphan",
     )
     audit_results: Mapped[list["AuditResult"]] = relationship(back_populates="rule_definition")
+
+    rule_hits: Mapped[list["RuleHit"]] = relationship(back_populates="rule_definition")

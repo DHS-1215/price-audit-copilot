@@ -323,7 +323,6 @@ def search_rules(
             "context_text": "",
         }
 
-    print("search_rules 已开始执行，mode =", mode)
     payload = retrieve_rules_by_mode(
         query=query,
         top_k=top_k,

@@ -8,12 +8,12 @@ IDE       :PyCharm
 """
 # 每次解决问题，我都在成长，不要着急，不要气馁！
 
-import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.core.config import get_settings
 from app.models import Base
 
 # 这行确保所有模型都被导入注册到 metadata
@@ -34,10 +34,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# 先走环境变量，没配就退回 alembic.ini
-database_url = os.getenv("DATABASE_URL")
-if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+# 统一从项目配置中心读取数据库连接，确保 app 运行与 Alembic 迁移使用同一套 DATABASE_URL
+database_url = get_settings().database_url
+config.set_main_option("sqlalchemy.url", database_url)
 
 target_metadata = Base.metadata
 

@@ -115,3 +115,27 @@ class AuditResultQuery(BaseModel):
     clean_platform: str | None = Field(default=None, description="按平台筛选")
     page: int = Field(default=1, ge=1, description="页码")
     page_size: int = Field(default=20, ge=1, le=100, description="每页数量")
+
+
+class AuditRunRequest(BaseModel):
+    clean_ids: list[int] | None = Field(
+        default=None,
+        description="指定要审核的 product_clean.id 列表；为空时按 limit 抽取",
+    )
+    limit: int = Field(
+        default=20,
+        ge=1,
+        le=500,
+        description="当 clean_ids 为空时，按数量抽取待审核数据",
+    )
+    persist_all_results: bool = Field(
+        default=True,
+        description="是否保存命中与未命中的全部 audit_result",
+    )
+
+
+class AuditRunResponse(BaseModel):
+    success: bool = Field(..., description="是否执行成功")
+    total_input_records: int = Field(..., description="本次审核输入记录数")
+    total_audit_results: int = Field(..., description="写入的 audit_result 数量")
+    summary: dict[str, Any] = Field(..., description="审核汇总")

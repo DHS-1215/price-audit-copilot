@@ -1,0 +1,63 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: price-audit-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: "price_audit_db"
+      TZ: "Asia/Shanghai"
+    ports:
+      - "3307:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p123456 --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: price-audit-api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      APP_NAME: "price-audit-copilot"
+      APP_ENV: "dev"
+      DEBUG: "true"
+      API_PREFIX: "/api"
+
+      DATABASE_URL: "mysql+pymysql://root:123456@mysql:3306/price_audit_db?charset=utf8mb4"
+
+      LOG_LEVEL: "INFO"
+      LOG_DIR: "logs"
+      LOG_FILE_NAME: "app.log"
+      TRACE_HEADER_NAME: "X-Trace-Id"
+
+      LLM_PROVIDER: "ollama"
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      OLLAMA_MODEL: "qwen2.5:7b"
+      RETRIEVAL_TOP_K: "5"
+
+      ASK_LOG_ENABLED: "true"
+      MODEL_CALL_LOG_ENABLED: "true"
+      REVIEW_LOG_ENABLED: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m uvicorn app.api.main:app --host 0.0.0.0 --port 8000"
+
+volumes:
+  mysql_data:

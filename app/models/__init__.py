@@ -15,6 +15,7 @@ from app.models.review_task import ReviewTask
 from app.models.review_record import ReviewRecord
 from app.models.ask_log import AskLog
 from app.models.model_call_log import ModelCallLog
+from app.models.rule_hit import RuleHit
 
 __all__ = [
     "Base",

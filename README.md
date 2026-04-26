@@ -1,456 +1,836 @@
-# Price Audit Copilot / 电商价格异常审核 Copilot
+# 鸿茅药酒电商维价审核 Copilot（企业级升级版）
 
-一个面向**电商价格异常审核场景**的 AI 辅助分析系统。  
-项目基于 **FastAPI + Ollama + Pandas + SQLite + RAG + Streamlit + Docker** 构建，不是泛泛的“聊天机器人”，而是围绕真实业务链路设计的 **价格异常审核 Copilot**。
+## 一、项目定位
 
-它支持：
+本项目是一个面向企业内部电商维价业务的 AI 审核辅助系统原型。
 
-- 商品信息结构化抽取
-- 数据清洗、规格归一与异常规则判定
-- 规则知识库检索与异常解释
-- 自然语言查数与问答
-- 简短业务汇报生成
-- 人工复核建议输出
+它不是通用聊天机器人，也不是简单的 RAG 问答 Demo，而是围绕电商维价审核场景，构建了一套从商品数据清洗、异常判定、规则解释、统一问答编排、人工复核闭环到日志审计与
+Docker 部署交付的完整业务链路。
 
----
-
-## 项目亮点
-
-- **6 周完成核心链路搭建**：从数据处理、规则判定到 RAG 检索、API、页面演示与 Docker 容器化全部打通
-- **3 个统一入口接口**：`/ask`、`/ask-lc`、`/extract`
-- **双检索方案**：支持 baseline 规则检索 + embedding + FAISS 向量检索
-- **规则知识库可解释**：基于 **6 份规则 / FAQ 文档**，切分为 **43 个规则 chunk**
-- **支持多类问答路由**：`analysis`、`retrieval`、`explanation`、`mixed`
-- **具备可演示与可交付能力**：包含 Streamlit 页面、JSONL 日志留痕、trace 输出、Docker build + run 验证
-- **主链路已验证可运行**：Docker 版本已验证 `/docs`、`/extract`、`/ask`
-
----
-
-## 1. 项目背景
-
-在电商价格审核场景中，业务人员每天会面对大量商品数据，常见痛点包括：
-
-- 商品标题和详情文本不规范，字段脏乱
-- 同品牌同规格商品在不同平台存在明显价差
-- 部分商品价格异常偏低，但需要结合规则口径解释
-- 业务人员不仅想知道“有没有异常”，还想知道“为什么判成异常”
-- 单纯 SQL 或脚本虽然能算结果，但很难把结果、规则依据、汇报输出和人工复核串成一条链
-
-因此，这个项目的目标不是做一个“会聊天”的 demo，  
-而是做一个更像真实业务系统的 **AI Copilot**。
-
----
-
-## 2. 项目目标
-
-本项目围绕“电商价格异常审核”设计，核心目标包括：
-
-1. 对商品标题 / 详情进行结构化抽取
-2. 对商品数据进行清洗、规格归一与异常规则判定
-3. 基于规则知识库做检索解释
-4. 支持自然语言驱动的数据分析与问答
-5. 输出适合业务阅读的简短汇报
-6. 预留人工复核入口，形成可解释、可追踪的业务闭环
-
----
-
-## 3. 核心能力概览
-
-### 3.1 统一问答入口
-
-- `POST /ask`
-- `POST /ask-lc`
-- `POST /extract`
-
-### 3.2 商品结构化抽取
-
-支持从商品标题 / 详情中抽取：
-
-- 品牌
-- 商品名
-- 规格
-- 平台
-- 价格
-- 促销文本
-- 基础结构化 JSON 输出
-
-### 3.3 数据清洗与归一
-
-支持：
-
-- 商品标题清洗
-- 规格字段基础清洗
-- 价格字段数值化
-- 平台字段归并
-- 日期字段标准化
-- 品牌别名统一
-- 规格写法统一
-- 标题与规格不一致风险标记
-
-### 3.4 价格异常分析
-
-支持：
-
-- 疑似异常低价识别
-- 跨平台价差异常识别
-- 规格识别风险识别
-- 异常原因生成
-- 异常明细输出
-- SQLite 落库
-
-### 3.5 规则检索与解释
-
-支持：
-
-- baseline 规则检索
-- embedding + FAISS 向量检索
-- 规则证据片段返回
-- 结果层 + 规则层联合解释
-- 复核建议输出
-
-### 3.6 混合问题处理
-
-支持：
-
-- 数据分析类问题
-- 规则检索类问题
-- 异常解释类问题
-- `mixed` 多步问题
-- 简短业务汇报生成
-
-### 3.7 页面展示与留痕
-
-支持：
-
-- Streamlit 页面演示
-- JSONL 问答日志落盘
-- trace 展示
-- 最近问答记录预览
-- human review 节点预留
-
----
-
-## 4. 技术栈
-
-### 后端与数据处理
-- Python
-- FastAPI
-- Pandas
-- SQLite
-- Pydantic
-- Requests
-
-### 大模型与检索增强
-- Ollama
-- LangChain
-- RAG
-- Embedding
-- FAISS
-
-### 前端与演示
-- Streamlit
-
-### 工程化
-- Git / GitHub
-- Docker
-
----
-
-## 5. 系统架构
+项目核心目标：
 
 ```text
-商品数据 / 规则文档
-        │
-        ▼
-数据清洗与归一
-(cleaner / normalizer)
-        │
-        ▼
-异常分析
-(analysis_tools)
-        │
-        ├──────────────► 结构化结果 / SQLite / 异常明细
-        │
-        ▼
-规则文档导入与切分
-(ingest / chunk / metadata)
-        │
-        ▼
-规则检索
-(baseline / FAISS)
-        │
-        ▼
-统一问答入口
-(/ask 主线, /ask-lc 展示副线)
-        │
-        ▼
-路由与受控流程
-analysis / retrieval / explanation / mixed
-        │
-        ▼
-汇报生成 + trace + 日志落盘
-        │
-        ▼
-Streamlit 页面展示 + human review 口子
+帮助业务人员更快发现价格异常
+帮助业务人员理解异常依据
+帮助业务人员完成复核动作并留痕
+帮助系统具备可测试、可部署、可交付能力
 ```
 
 ---
 
-## 6. 为什么 mixed 场景采用受控流程
+## 二、业务背景
 
-`mixed` 问题不是简单问答，而是一个更高约束的业务过程：
+在电商维价场景中，业务人员需要持续关注多个平台上的商品价格、规格、标题、店铺等信息。
 
-1. 先查数据事实
-2. 再检索规则依据
-3. 最后组织成适合业务阅读的结论
+典型问题包括：
 
-因此本项目没有把 mixed 全部交给自由 agent 猜工具链，而是采用更稳的受控流程：
+- 商品是否低于维价规则要求；
+- 不同平台之间是否存在明显价差；
+- 商品标题和规格字段是否存在不一致；
+- 某条异常为什么被系统判定为异常；
+- 业务人员复核后如何留痕；
+- 后续如何导出结果并追踪处理过程。
 
-**分析 → 检索 → 汇报**
-
-这样做的好处是：
-
-- 可控
-- 可解释
-- 更符合真实业务顺序
-- 更适合面试中讲清系统设计思路
+本项目以鸿茅药酒相关电商商品数据为业务对象，构建了一个 AI 辅助审核系统，用于模拟企业内部价格巡检、异常识别、规则解释与人工复核流程。
 
 ---
 
-## 7. 项目结构
+## 三、核心能力
+
+当前项目已覆盖以下核心能力：
+
+- 商品数据清洗与标准化；
+- 异常规则判定；
+- 规则命中留痕；
+- RAG 规则检索；
+- 规则解释与 citation 输出；
+- 统一 `/ask` 问答编排；
+- LangChain `/ask-lc` 增强链；
+- 人工复核任务流；
+- 复核状态机；
+- 复核记录留痕；
+- 中文字段存储与导出；
+- pytest 正式测试；
+- smoke test 烟雾测试；
+- Docker Compose 部署。
+
+---
+
+## 四、系统主链路
+
+系统主链路如下：
+
+```text
+原始商品数据
+  ↓
+清洗与标准化
+  ↓
+异常判定
+  ↓
+规则命中记录
+  ↓
+RAG 检索规则依据
+  ↓
+/ask 统一问答编排
+  ↓
+人工复核任务
+  ↓
+复核记录留痕
+  ↓
+结果导出
+```
+
+---
+
+### 4.1 数据链路
+
+原始商品数据进入系统后，先进入 `product_raw`，再经过清洗和标准化，形成 `product_clean`。
+
+---
+
+### 4.2 规则链路
+
+系统通过规则引擎生成异常判定结果，并将规则命中事实写入：
+
+```text
+audit_result
+rule_hit
+```
+
+---
+
+### 4.3 RAG 解释链路
+
+规则文档被切分为 `rule_chunk`，通过以下检索方式返回 evidence 和 citation，用于解释异常依据：
+
+- baseline 检索；
+- vector 检索；
+- hybrid 检索。
+
+---
+
+### 4.4 问答编排链路
+
+用户通过 `/ask` 输入自然语言问题，系统根据问题类型路由到：
+
+```text
+analysis
+retrieval
+explanation
+mixed
+```
+
+不同类型问题走不同工具链，避免所有问题都交给自由 Agent 乱跑。
+
+---
+
+### 4.5 人工复核链路
+
+异常结果可以创建为复核任务，业务人员可以：
+
+- 查看异常；
+- 查看规则依据；
+- 添加备注；
+- 确认异常；
+- 标记误报；
+- 忽略任务；
+- 关闭任务；
+- 查询复核记录；
+- 导出复核结果。
+
+---
+
+## 五、技术栈
+
+---
+
+### 5.1 后端与接口
+
+- Python 3.11
+- FastAPI
+- Uvicorn
+- Pydantic v2
+- SQLAlchemy 2.x
+- Alembic
+- MySQL 8.0
+- PyMySQL
+
+---
+
+### 5.2 数据处理
+
+- Pandas
+- 自定义清洗逻辑
+- 自定义规则引擎
+
+---
+
+### 5.3 RAG 与大模型
+
+- Ollama
+- LangChain
+- FAISS
+- ChromaDB
+- baseline 检索
+- vector 检索
+- hybrid 检索
+- rerank 预留
+
+---
+
+### 5.4 测试与部署
+
+- pytest
+- requests
+- Docker
+- docker-compose
+
+---
+
+### 5.5 页面与工作台
+
+- Streamlit
+
+---
+
+## 六、项目目录结构
+
+当前核心目录结构：
 
 ```text
 price-audit-copilot/
+│
 ├── app/
-│   ├── api/
-│   │   ├── main.py
-│   │   ├── routes_ask.py
-│   │   └── routes_ask_langchain.py
-│   ├── chain/
-│   │   ├── ask_agent.py
-│   │   └── langchain_tools.py
-│   ├── core/
-│   ├── data/
-│   │   ├── cleaner.py
-│   │   ├── normalizer.py
-│   │   └── db.py
-│   ├── rag/
-│   │   ├── ingest.py
-│   │   ├── retriever.py
-│   │   ├── faiss_store.py
-│   │   └── faiss_retriever.py
-│   ├── tools/
-│   │   ├── analysis_tools.py
-│   │   ├── retrieval_tools.py
-│   │   ├── explanation_tools.py
-│   │   ├── report_tools.py
-│   │   └── log_tools.py
-│   ├── ui/
-│   │   └── streamlit_app.py
-│   └── graph/
-│       └── workflow.py
-├── data/
+│   ├── api/                  # FastAPI 接口入口
+│   ├── core/                 # 配置、日志、异常、响应、trace
+│   ├── db/                   # 数据库 session
+│   ├── llm/                  # Ollama 客户端
+│   ├── models/               # SQLAlchemy ORM 模型
+│   ├── orchestrators/        # /ask 编排层
+│   ├── rag/                  # RAG 检索、解释、向量检索
+│   ├── repositories/         # 仓储层
+│   ├── schemas/              # Pydantic schema
+│   ├── services/             # 业务服务层
+│   ├── tools/                # LangChain / 工具函数
+│   └── workflows/            # 工作流预留
+│
+├── app_ui/                   # Streamlit 页面
+│
+├── alembic/                  # 数据库迁移
+│   └── versions/
+│
+├── data/                     # 样例数据、规则文档、RAG 数据
 │   ├── rules/
 │   ├── rag/
-│   ├── eval/
-│   ├── outputs/
-│   └── price_audit.db
-├── requirements.txt
+│   ├── faiss/
+│   ├── processed/
+│   └── samples/
+│
+├── docs/                     # 项目文档
+│   ├── database/
+│   ├── deployment/
+│   ├── handoff/
+│   ├── source_of_truth/
+│   └── testing/
+│
+├── scripts/                  # 构建、迁移、smoke test 脚本
+│
+├── tests/                    # pytest 正式测试
+│   ├── regression/
+│   └── review/
+│
 ├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore
+├── .env.example
+├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## 8. API 示例
+## 七、快速启动：本地开发环境
 
-### 8.1 `/extract`
+---
 
-用于商品标题 / 详情的结构化抽取。
+### 7.1 创建并激活环境
 
-**请求示例：**
-
-```json
-{
-  "title": "鸿茅药酒 500ml*4 礼盒装 京东自营 799元"
-}
-```
-
-**返回示例：**
-
-```json
-{
-  "brand": "鸿茅",
-  "product_name": "药酒",
-  "spec": "500ml*4",
-  "price": 799,
-  "currency": "CNY",
-  "promo_text": "礼盒装 京东自营",
-  "confidence": 0.8
-}
+```bash
+conda create -n lc_v1 python=3.11
+conda activate lc_v1
 ```
 
 ---
 
-### 8.2 `/ask`
-
-当前更稳定的统一问答主入口。
-
-支持路由：
-
-- `analysis`
-- `retrieval`
-- `explanation`
-- `mixed`
-- `unknown`
-
-统一返回结构包含：
-
-- `route`
-- `answer`
-- `tools_used`
-- `analysis_result`
-- `retrieval_result`
-- `explanation_result`
-- `trace`
-
-**问题示例：**
-
-```json
-{
-  "question": "当前共有多少条疑似异常低价记录？"
-}
-```
-
----
-
-### 8.3 `/ask-lc`
-
-LangChain 工具链版本入口，主要用于展示工具编排与扩展能力。  
-当前主线以 `/ask` 为主，`/ask-lc` 作为展示副线。
-
----
-
-## 9. 知识库说明
-
-当前规则知识库包含：
-
-- 低价异常规则
-- 规格归一与规格风险规则
-- 跨平台价差异常规则
-- 人工复核流程
-- FAQ 等文档
-
-当前共整理：
-
-- **6 份规则 / FAQ 文档**
-- **43 个规则 chunk**
-
-知识库检索支持：
-
-- baseline 检索
-- embedding + FAISS 向量检索
-
----
-
-## 10. 快速开始
-
-### 10.1 本地运行
-
-安装依赖：
+### 7.2 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-启动 FastAPI：
+---
+
+### 7.3 准备环境变量
+
+复制 `.env.example` 为 `.env`：
 
 ```bash
-uvicorn app.api.main:app --reload
+copy .env.example .env
 ```
 
-启动后可访问：
+本地 MySQL 示例：
+
+```text
+DATABASE_URL=mysql+pymysql://root:123456@127.0.0.1:3306/price_audit_db?charset=utf8mb4
+```
+
+---
+
+### 7.4 执行数据库迁移
 
 ```bash
+alembic upgrade head
+```
+
+---
+
+### 7.5 启动 FastAPI
+
+```bash
+python -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+---
+
+### 7.6 访问接口文档
+
+```text
 http://127.0.0.1:8000/docs
 ```
 
-启动 Streamlit：
+---
+
+## 八、Docker 部署
+
+本项目已支持 Docker Compose 启动。
+
+---
+
+### 8.1 检查 Compose 配置
 
 ```bash
-streamlit run app/ui/streamlit_app.py
+docker compose config
 ```
 
 ---
 
-### 10.2 Docker 运行
-
-构建镜像：
+### 8.2 构建镜像
 
 ```bash
-docker build -t price-audit-copilot .
+docker compose build
 ```
 
-运行容器：
+当前已验证构建成功：
+
+```text
+Image price-audit-copilot-api Built
+```
+
+---
+
+### 8.3 启动服务
 
 ```bash
-docker run --rm -p 8000:8000 ^
-  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 ^
-  price-audit-copilot
+docker compose up -d
 ```
 
-> Windows PowerShell 可按本机环境调整换行方式。
+---
 
-**说明：**
+### 8.4 查看容器状态
 
-- 当前 Docker 版本已验证 `/docs`、`/extract`、`/ask` 主链路可运行
-- 容器内 FastAPI 服务通过 `OLLAMA_BASE_URL` 访问宿主机 Ollama
-- 当前目标是验证最小可交付能力，而不是追求生产级部署复杂度
+```bash
+docker compose ps
+```
+
+当前已验证：
+
+```text
+price-audit-mysql   Up / healthy
+price-audit-api     Up
+```
 
 ---
 
-## 11. 项目验收与完成度
+### 8.5 端口说明
 
-当前项目已完成：
+| 服务      | 容器端口 | 宿主机端口 |
+|---------|-----:|------:|
+| FastAPI | 8000 |  8000 |
+| MySQL   | 3306 |  3307 |
 
-- 核心数据处理链路
-- 异常规则判定链路
-- 规则知识库导入与切分
-- baseline / FAISS 双检索
-- `/ask`、`/ask-lc`、`/extract` 三类接口
-- Streamlit 页面演示
-- JSONL 日志留痕与 trace 输出
-- Docker build + run 验证
-- 正式评测 / 验收样例整理
+说明：
 
-> 核心版本已在 6 周内完成，后续仍可继续扩展检索效果、工作流编排与部署能力。
+```text
+宿主机访问 Docker MySQL：127.0.0.1:3307
+API 容器访问 MySQL：mysql:3306
+```
 
 ---
 
-## 12. 这个系统比普通 SQL / 脚本强在哪
+### 8.6 基础接口验证
 
-单纯 SQL 或脚本可以算结果，但很难同时做到：
+验证根接口：
 
-- 自然语言驱动问答
-- 规则依据检索与展示
-- 解释型回答
-- 简短业务汇报生成
-- trace 留痕
-- human review 口子
-- 前端演示与统一 API
+```bash
+curl.exe http://127.0.0.1:8000/
+```
 
-本项目的价值不在于“替代 SQL”，  
-而在于把 **数据事实、规则依据、结论表达和人工复核** 串成一个更完整的业务闭环。
+预期返回：
+
+```json
+{
+  "success": true,
+  "code": "OK",
+  "message": "success",
+  "trace_id": "非空字符串",
+  "data": {
+    "message": "Price Audit Copilot API is running."
+  }
+}
+```
+
+验证 Review API：
+
+```bash
+curl.exe "http://127.0.0.1:8000/api/v1/reviews/tasks?page=1&page_size=5"
+```
+
+空库下预期返回：
+
+```json
+{
+  "success": true,
+  "code": "OK",
+  "message": "success",
+  "trace_id": "非空字符串",
+  "data": {
+    "total": 0,
+    "page": 1,
+    "page_size": 5,
+    "items": []
+  }
+}
+```
 
 ---
 
-## 13. 后续优化方向
+### 8.7 Docker 说明
 
-后续可继续扩展的方向包括：
+Docker Compose 启动时会自动执行：
 
-- 丰富规则知识库与 FAQ 覆盖范围
-- 优化 embedding 检索质量与 rerank 机制
-- 增强 mixed 场景的工作流编排能力
-- 完善评测集与自动化测试
-- 支持更完整的人工复核流转
-- 继续推进部署与工程化能力
+```bash
+alembic upgrade head
+```
+
+当前已验证 Alembic 可从空库迁移至最新版本：
+
+```text
+0001 -> 0008
+```
+
+Docker 新库默认是空业务库，适合验证：
+
+- 镜像构建；
+- 容器启动；
+- 数据库迁移；
+- API 可访问；
+- `/docs` 可访问；
+- 基础接口可返回。
+
+完整业务 smoke test 依赖已有业务样本，例如：
+
+```text
+audit_result_id = 259
+```
+
+需要先准备演示数据。
+
+详细说明见：
+
+```text
+docs/deployment/docker_deployment.md
+```
+
+---
+
+## 九、核心接口
+
+---
+
+### 9.1 健康检查
+
+```http
+GET /
+```
+
+返回统一响应外壳：
+
+```json
+{
+  "success": true,
+  "code": "OK",
+  "message": "success",
+  "trace_id": "...",
+  "data": {
+    "message": "Price Audit Copilot API is running."
+  }
+}
+```
+
+---
+
+### 9.2 统一问答主链
+
+```http
+POST /ask
+```
+
+用于处理自然语言问题，支持：
+
+```text
+analysis
+retrieval
+explanation
+mixed
+```
+
+---
+
+### 9.3 LangChain 增强链
+
+```http
+POST /ask-lc
+```
+
+用于展示 tool calling / LangChain 增强能力，不替代 `/ask` 主链。
+
+---
+
+### 9.4 结构化抽取
+
+```http
+POST /extract
+```
+
+用于从商品标题中抽取结构化信息。
+
+---
+
+### 9.5 审核执行
+
+```http
+POST /audit/run
+```
+
+用于触发审核流程。
+
+---
+
+### 9.6 人工复核接口
+
+复核接口统一位于：
+
+```text
+/api/v1/reviews
+```
+
+核心接口：
+
+```http
+POST /api/v1/reviews/tasks
+GET  /api/v1/reviews/tasks
+GET  /api/v1/reviews/tasks/{task_id}
+
+POST /api/v1/reviews/tasks/{task_id}/confirm
+POST /api/v1/reviews/tasks/{task_id}/reject
+POST /api/v1/reviews/tasks/{task_id}/ignore
+POST /api/v1/reviews/tasks/{task_id}/close
+POST /api/v1/reviews/tasks/{task_id}/comment
+
+GET  /api/v1/reviews/records
+GET  /api/v1/reviews/export
+```
+
+复核接口已统一响应外壳：
+
+```json
+{
+  "success": true,
+  "code": "OK",
+  "message": "success",
+  "trace_id": "...",
+  "data": {}
+}
+```
+
+---
+
+## 十、测试与验收
+
+---
+
+### 10.1 pytest 正式测试
+
+运行全部正式测试：
+
+```bash
+pytest tests -q
+```
+
+当前验收结果：
+
+```text
+6 passed
+```
+
+当前 pytest 覆盖：
+
+- review API 统一响应契约；
+- review 状态机；
+- review 中文字段；
+- 已有 regression 测试。
+
+---
+
+### 10.2 Review 专项测试
+
+```bash
+pytest tests\review -q
+```
+
+覆盖：
+
+- `success` / `code` / `message` / `trace_id` / `data` 响应契约；
+- `pending` / `confirmed` / `closed` 状态流转；
+- 中文字段存储与导出。
+
+---
+
+### 10.3 5号窗口 RAG smoke test
+
+```bash
+python -m scripts.smoke_test_window5_rag_explanation
+```
+
+当前验收结果：
+
+```text
+PASS: 9
+FAIL: 0
+SKIP: 0
+```
+
+覆盖：
+
+- baseline 检索；
+- vector 检索；
+- hybrid 检索；
+- `low_price` 解释链；
+- `cross_platform_gap` 解释链；
+- `spec_risk` 解释链；
+- evidence / citation 输出。
+
+---
+
+### 10.4 6号窗口 `/ask` 编排 smoke test
+
+```bash
+python -m scripts.smoke_test_window6_ask_orchestration
+```
+
+当前验收结果：
+
+```text
+PASS: 6
+FAIL: 0
+```
+
+覆盖：
+
+- `/ask analysis`
+- `/ask retrieval`
+- `/ask explanation`
+- `/ask mixed`
+- `/ask-lc mixed`
+
+---
+
+### 10.5 7号窗口人工复核 smoke test
+
+```bash
+python -m scripts.smoke_test_window7_review_flow
+python -m scripts.smoke_test_window7_review_chinese
+python -m scripts.smoke_test_window7_review_state_machine
+```
+
+当前验收结果：
+
+```text
+review_flow：PASS: 7 / FAIL: 0
+review_chinese：通过
+review_state_machine：PASS: 6 / FAIL: 0
+```
+
+详细说明见：
+
+```text
+docs/testing/testing_guide.md
+```
+
+---
+
+## 十一、当前验收结果
+
+当前 8 号窗口阶段已完成以下收口：
+
+| 验收项                    | 状态      |
+|------------------------|---------|
+| review API 统一响应外壳      | 完成      |
+| `trace_id` 成功响应接入      | 完成      |
+| pytest 正式测试            | 通过      |
+| 5号窗口 RAG smoke test    | 通过      |
+| 6号窗口 ask 编排 smoke test | 通过      |
+| 7号窗口 review smoke test | 通过      |
+| Docker build           | 通过      |
+| `docker compose up`    | 通过      |
+| MySQL 容器               | healthy |
+| API 容器                 | running |
+| Alembic 自动迁移           | 通过      |
+| `/docs`                | 可访问     |
+| `/openapi.json`        | 可访问     |
+
+---
+
+## 十二、项目亮点
+
+---
+
+### 12.1 不是通用聊天机器人，而是业务系统
+
+本项目围绕电商维价审核场景展开，AI 能力服务于业务链路，而不是单纯展示模型对话。
+
+---
+
+### 12.2 规则引擎与 RAG 解释分层
+
+异常判定由规则引擎负责。
+
+RAG 解释层只解释已有判定事实，避免模型反向覆盖业务结果。
+
+---
+
+### 12.3 主链与增强链分离
+
+`/ask` 是正式主链，强调：
+
+- 稳定；
+- 可控；
+- 可验收。
+
+`/ask-lc` 是增强链，用于展示 LangChain tool calling 能力，但不替代主链。
+
+---
+
+### 12.4 人工复核闭环
+
+项目不是只给出“异常结论”，而是支持业务人员继续处理异常：
+
+- 确认异常；
+- 标记误报；
+- 忽略任务；
+- 关闭任务；
+- 添加备注；
+- 查询记录；
+- 导出结果。
+
+---
+
+### 12.5 工程化收口
+
+项目补齐了：
+
+- 统一配置；
+- 统一响应；
+- 统一异常；
+- `trace_id`；
+- 日志；
+- Alembic 迁移；
+- pytest；
+- smoke test；
+- Docker Compose；
+- 部署文档；
+- 测试文档。
+
+---
+
+## 十三、面试讲解要点
+
+可以从下面这条主线讲项目：
+
+> 我做的是一个面向电商维价审核场景的 AI 辅助系统。
+>
+> 它不是普通聊天机器人，而是把商品清洗、异常判定、规则解释、统一问答和人工复核闭环串成了一条完整业务链路。
+
+重点可讲：
+
+- 为什么先做规则判定，再做 RAG 解释；
+- 为什么 `/ask` 不完全交给自由 Agent；
+- 为什么保留 `/ask` 和 `/ask-lc` 两条链；
+- 为什么要做人工复核闭环；
+- 为什么要做 `trace_id`、日志、统一响应；
+- 为什么最后补 pytest 和 Docker；
+- 如何验证这个项目不是“只能自己电脑跑”。
+
+推荐回答方向：
+
+```text
+规则引擎负责确定业务事实；
+RAG 负责提供可追溯解释依据；
+/ask 负责编排不同任务类型；
+人工复核负责形成业务闭环；
+日志、测试、Docker 负责让项目可验证、可交付。
+```
+
+---
+
+## 十四、后续扩展方向
+
+后续可以继续增强：
+
+- Docker 演示数据 seed 脚本；
+- 测试数据库隔离；
+- CI 自动测试；
+- CSV / Excel 导出；
+- 更完整的 API 文档；
+- 权限与角色控制；
+- 多品牌规则配置；
+- 规则版本管理页面；
+- RAG rerank 正式接入；
+- LangGraph 工作流增强；
+- 前后端分离工作台。
+
+---
+
+## 十五、当前项目状态
+
+当前项目已经从早期的“能跑原型”升级为：
+
+- 具备正式工程结构；
+- 具备数据库迁移；
+- 具备规则判定能力；
+- 具备 RAG 规则解释能力；
+- 具备统一问答编排；
+- 具备人工复核闭环；
+- 具备测试验证；
+- 具备 Docker Compose 部署；
+- 具备部署与测试文档。

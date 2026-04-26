@@ -1,5 +1,6 @@
 FROM python:3.11-slim
-LABEL authors="董"
+
+LABEL authors="董宏升"
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -20,6 +21,6 @@ RUN pip install --upgrade pip && \
 
 COPY . .
 
-EXPOSE 8001
+EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python", "-m", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

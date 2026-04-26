@@ -77,3 +77,8 @@ class ProductClean(Base, TimestampMixin):
         back_populates="clean_record",
         cascade="all, delete-orphan",
     )
+
+    rule_hits: Mapped[list["RuleHit"]] = relationship(
+        back_populates="clean_record",
+        cascade="all, delete-orphan",
+    )
